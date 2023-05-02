@@ -1,4 +1,5 @@
 #!/bin/bash
+rm boot.img bochsrc
 
 bximage << EOF
 1
