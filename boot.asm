@@ -23,3 +23,16 @@ End:
 
 Message:	db "Hello world"
 MessageLen: 	equ $-Message
+
+times (0x1be-($-$$)) db 0
+	db 80h
+	db 0,2,0
+	db 0f0h
+	db 0ffh,0ffh,0ffh
+	dd 1
+	dd (20*16*63-1)
+	
+	times (16*3) db 0
+
+	db 0x55
+	db 0xaa 
