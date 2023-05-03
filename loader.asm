@@ -18,6 +18,19 @@ start:
 	test edx,(1<<26)
         jz NotSupport
 
+LoadKernel:
+    	mov si,ReadPacket
+ 	mov word[si],0x10
+      	mov word[si+2],0x64
+	mov word[si+4],0x0
+      	mov word[si+6],0x1000
+       	mov dword[si+8],0x6
+       	mov dword[si+12],0x0
+
+       	mov dl,[DriveID]
+       	mov ah,0x42
+       	int 0x13
+       	jc ReadError
 
         mov ah,0x13
         mov al,1
@@ -27,11 +40,13 @@ start:
         mov cx,MessageLen
         int 0x10
 
+ReadError:
 NotSupport:
 End:
         hlt
         jmp End
 
 DriveID: 	db 0
-Message:        db "Loader is running"
+Message:        db "Kernel is running"
 MessageLen:     equ $-Message
+ReadPacket:     times 16 db 0
