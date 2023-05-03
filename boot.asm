@@ -17,8 +17,25 @@ TestDiskExtension:
         cmp bx,0xaa55
         jne NotSupport
 
+LoadLoader:
+        mov si,ReadPacket
+        mov word[si],0x10
+        mov word[si+2],0x5
+        mov word[si+4],0x7e00
+        mov word[si+6],0x0
+        mov dword[si+8],0x1
+        mov dword[si+12],0x0
 
-PrintMessage:
+        mov dl,[DriveID]
+        mov ah,0x42
+        int 0x13
+        jc ReadError
+
+        mov dl,[DriveID]
+        jmp 0x7e00
+
+NotSupport:
+ReadError:
 	mov ah,0x13
 	mov al,1
 	mov bx,0xa
@@ -27,14 +44,14 @@ PrintMessage:
 	mov cx,MessageLen
 	int 0x10
 
-NotSupport:
 End:
 	hlt
 	jmp End
 
 DriveID:  	db 0
-Message:	db "Disk extension is supported"
+Message:	db "An error is occured when booting system."
 MessageLen: 	equ $-Message
+ReadPacket: 	times 16 db 0
 
 times (0x1be-($-$$)) db 0
 	db 80h
