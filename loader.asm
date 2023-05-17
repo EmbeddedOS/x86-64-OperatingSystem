@@ -49,6 +49,20 @@ GetMemoryInfo:
         jnz GetMemoryInfo
 
 GetMemoryDone:
+
+TestA20lLine:
+        mov ax,0xffff
+        mov es,ax
+        mov word[ds:0x7c00],0xa200
+        cmp word[es:0x7c10],0xa200
+        jne SetA20LineDone
+        mov word[0x7c00],0xb200
+        cmp word[es:0x7c10],0xb200
+        je NotSupport 
+
+SetA20LineDone:
+	xor ax,ax
+	mov es,ax
         mov ah,0x13
         mov al,1
         mov bx,0xa
@@ -64,6 +78,6 @@ End:
         jmp End
 
 DriveID: 	db 0
-Message:        db "Check memory map successfully."
+Message:        db "System supports A20 line."
 MessageLen:     equ $-Message
 ReadPacket:     times 16 db 0
