@@ -1,38 +1,41 @@
 [BITS 16]
-[ORG 0x7c00]
+[ORG 0x7C00]	# The boot code start at address 0x7C00 and ascending.
 
 start:
-	xor ax,ax
-	mov ds,ax
-	mov es,ax
-	mov ss,ax
-	mov sp,0x7c00
+	# 1. Clear segment registers.
+	xor ax, ax
+	mov ds, ax
+	mov es, ax
+	mov ss, ax
+
+	# 2. Stack pointer start at address 0x7c00 and grows downwards.
+	mov sp, 0x7C00
 
 TestDiskExtension:
-        mov [DriveID],dl
-        mov ah,0x41
-        mov bx,0x55AA
-        int 0x13
-        jc NotSupport
-        cmp bx,0xaa55
-        jne NotSupport
+	mov [DriveID], dl
+	mov ah, 0x41
+	mov bx, 0x55AA
+	int 0x13
+	jc NotSupport
+	cmp bx,0xaa55
+	jne NotSupport
 
 LoadLoader:
-        mov si,ReadPacket
-        mov word[si],0x10
-        mov word[si+2],0x5
-        mov word[si+4],0x7e00
-        mov word[si+6],0x0
-        mov dword[si+8],0x1
-        mov dword[si+12],0x0
+	mov si,ReadPacket
+	mov word[si],0x10
+	mov word[si+2],0x5
+	mov word[si+4],0x7e00
+	mov word[si+6],0x0
+	mov dword[si+8],0x1
+	mov dword[si+12],0x0
 
-        mov dl,[DriveID]
-        mov ah,0x42
-        int 0x13
-        jc ReadError
+	mov dl,[DriveID]
+	mov ah,0x42
+	int 0x13
+	jc ReadError
 
-        mov dl,[DriveID]
-        jmp 0x7e00
+	mov dl,[DriveID]
+	jmp 0x7e00
 
 NotSupport:
 ReadError:

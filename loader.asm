@@ -2,16 +2,16 @@
 [ORG 0x7e00]
 
 start:
-	mov [DriveID],dl      	
-	mov eax,0x80000000
+        mov [DriveID],dl
+        mov eax,0x80000000
       	cpuid
        	cmp eax,0x80000001
-  	jb NotSupport
-	mov eax,0x80000001
-	cpuid
-	test edx,(1<<29)
-	jz NotSupport
-	test edx,(1<<26)
+        jb NotSupport
+        mov eax,0x80000001
+        cpuid
+        test edx,(1<<29)
+        jz NotSupport
+        test edx,(1<<26)
         jz NotSupport
 
 LoadKernel:

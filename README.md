@@ -1,5 +1,6 @@
-# x86_64_OS
-Simple Operating system based on x86-64 architecture.
+# x86-64 Operating System
+
+An Operating System based on x86-64 architecture.
 
 ## Run the OS
 
