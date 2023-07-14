@@ -290,3 +290,37 @@
   - We want BIOS to boot the USB flash drive as hard disk, so we add the partition entry to construct a seemingly valid entries.
 
   - The last two byte of our boot file is signature which should be 0x55AA.
+
+- The size of boot file is 512 bytes. And the sector size is assumed to be 512 bytes in this course. So when we write the boot file into the boot sector, it gets the same data as boot file.
+
+### 13. Test Disk Extension Service
+
+- First of all, we need to test the Disk Extension Service, because we need to our kernel from disk to the memory and jump to the kernel.
+
+- We use BIOS disk services to load our file from disk in boot process.
+- When we read file from disk, we should provide CHS value in order to locate the sector we want to read. And using the CHS value requires extra calculation. To make our boot file simple, we choose the Logical Block Address (LBA) which disk extension service used to access the disk.
+
+- Modern computers should support the extension service, but we will check it anyway.
+
+      ```assembly
+      TestDiskExtension:
+        mov [DriveID], dl
+        mov ah, 0x41
+        mov bx, 0x55AA
+        int 0x13          ; call INT 13 Extensions - INSTALLATION CHECK service.
+        jc NotSupport     ; CF - Carry Flag is set on error or clear on success.
+        cmp bx, 0xAA55    ; bx = 0xAA55 if installed.
+        jne NotSupport
+
+      DriveID:    db 0
+      ```
+  - TO check Extension use `int 0x13` we should pass:
+    - NOTE: About the int 0x13 extensions [link](http://www.ctyme.com/intr/rb-0706.htm)
+    - `ah` = 0x41
+    - `bx` = 0x55AA
+    - `dl` holds the driver ID, when BIOS transfer control to our boot code.
+    - This returns:
+      - `CF` flag is set on error (extensions not support)
+      - `CF` flag is clear if successfully.
+  - Because we want to write the value into the memory location the `DriveID` represents, we use square brackets to access the location [].
+  - If the service is not supported, the carry flag is set. So we use `jc` instruction.

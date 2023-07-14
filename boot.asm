@@ -1,7 +1,7 @@
 [BITS 16]
 [ORG 0x7C00]	; The boot code start at address 0x7C00 and ascending.
 
-start:
+Start:
 	; 1. Clear segment registers.
 	xor ax, ax
 	mov ds, ax
@@ -11,13 +11,14 @@ start:
 	; 2. Stack pointer start at address 0x7c00 and grows downwards.
 	mov sp, 0x7C00
 
+	; 3. Test Disk Extension Service.
 TestDiskExtension:
 	mov [DriveID], dl
 	mov ah, 0x41
 	mov bx, 0x55AA
-	int 0x13
-	jc NotSupport
-	cmp bx, 0xAA55
+	int 0x13			; call INT 13 Extensions - INSTALLATION CHECK service.
+	jc NotSupport		; CF - Carry Flag is set on error or clear on success.
+	cmp bx, 0xAA55		; bx = 0xAA55 if installed.
 	jne NotSupport
 
 LoadLoader:
@@ -29,24 +30,25 @@ LoadLoader:
 	mov dword[si+8], 0x1
 	mov dword[si+12], 0x0
 
-	mov dl,[DriveID]
-	mov ah,0x42
+	mov dl, [DriveID]
+	mov ah, 0x42
 	int 0x13
 	jc ReadError
 
-	mov dl,[DriveID]
+	mov dl, [DriveID]
 	jmp 0x7E00
 
 NotSupport:
 ReadError:
-	mov ah,0x13
-	mov al,1
-	mov bx,0xA
-	xor dx,dx
-	mov bp,Message
-	mov cx,MessageLen
+	mov ah, 0x13
+	mov al, 1
+	mov bx, 0xA
+	xor dx, dx
+	mov bp, Message
+	mov cx, MessageLen
 	int 0x10
 
+; Halt CPU if we go to the end.
 End:
 	hlt
 	jmp End
