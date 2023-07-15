@@ -555,3 +555,41 @@
             je NotSupport                   ; If it actually disable A20 line we exit.
 
         ```
+
+### 19. Set Video mode
+
+- Before we switch to long mode, one more thing we need to do is set video mode. Because when we switch, we will not able to call BIOS function anymore.
+
+- So, after we setup the text, we can print message on screen without calling BIOS service. If we pass 0x3 to `al`:
+  - The base address for text mode will be 0xB8000.
+  - The size of screen we can print on is 80 * 25.
+
+- Every character takes up two bytes of space.
+
+- The first position on the screen corresponds to the two bytes at 0xB8000, and so on.
+  - The first byte is for ASCII code and second byte is attribute of character.
+    - lower part of second byte is foreground cloud.
+    - the higher half is background cloud.
+
+            ```assembly
+                ; 8. Set video mode.
+            SetVideoMode:
+                mov ax, 0x03            ; AH=0x00 use BIOS VIDEO - SET VIDEO MODE service.
+                                        ; AL=0x03 use the base address to print at 0xB8000.
+                int 0x10                ; Call the service.
+
+                mov si, Message         ; Point SI to message.
+                mov ax, 0xB800
+                mov es, ax              ; Set extra segment to 0xB800, so memory we access
+                                        ; via this register will be: 0xB8000 + offset
+                xor di, di
+                mov cx, MessageLen
+
+            PrintMessage:
+                mov al, [si]
+                mov [es:di], al         ; Copy character to screen address.
+                mov byte[es:di+1], 0x0A ; Copy attribute byte of character also.
+                add di, 0x02            ; di point to next position on screen.
+                add si, 0x01            ; si point to next byte in message.
+                loop PrintMessage
+            ```
