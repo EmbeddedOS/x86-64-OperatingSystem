@@ -112,4 +112,4 @@ times (16*3) db 0
 
 ; Final two bytes are signature of the boot sector - magic numbers.
 db 0x55
-db 0xaa
+db 0xAA

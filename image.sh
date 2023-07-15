@@ -1,6 +1,7 @@
 #!/bin/bash
 rm boot.img bochsrc
 
+# Create a hard disk image with size 10MB.
 bximage << EOF
 1
 hd
@@ -10,6 +11,7 @@ flat
 boot.img
 EOF
 
+# If use bochs to simulate, we need to make bochsrc file.
 bochs << EOF
 3
 6
