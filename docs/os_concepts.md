@@ -324,3 +324,81 @@
       - `CF` flag is clear if successfully.
   - Because we want to write the value into the memory location the `DriveID` represents, we use square brackets to access the location [].
   - If the service is not supported, the carry flag is set. So we use `jc` instruction.
+
+### 14. Loader
+
+- After disk extension check is passed, we load a new file called loader file in the memory.
+- The reason we need a loader file is that the MBR is fixed size which is 512 bytes. There are spaces reserved for other use such as partition entries which leaves us less than 512 bytes for the boot code.
+- And the tasks that we should do in the boot process includes load kernel file, get memory map, switch to protected mode and then jump to long mode. Doing all these tasks require the boot code larger than 512 bytes.
+
+- We need to a new file: loader file to do all these things.
+- The memory map look like:
+
+              Memory
+      |-------------------| Max size
+      |                   |
+      |-------------------|
+      |      Loader       | 0x7e00
+      |-------------------|
+      |     MBR code      | 0x7c00
+      |-------------------|
+      |                   |
+      |                   |
+      |-------------------| 0
+
+- The loader file has no 512 bytes limits.
+- The boot code is loaded by BIOS in the memory address 0x7c00. The size of the boot code is 512 = 0x200 bytes, so we simply load our loader file into the location right after the boot code which is the location 0x7e00.
+
+- The loader do:
+  - Loader retrieves information about hardware.
+  - Prepare for 64-bit mode and switch to it.
+  - Loader loads kernel in main memory.
+  - Jump to kernel.
+
+- our load loader code:
+      ```assembly
+        ; 4. Load the loader.
+      LoadLoader:
+        mov si, ReadPacket        ; Load the packet address to si.
+        mov word[si], 0x10        ; Packet size is 16 bytes.
+        mov word[si + 2], 0x05    ; We we load 5 sectors which is enough space for
+                                  ; our loader.
+        mov word[si + 4], 0x7E00  ; Offset which we want to read loader file.
+        mov word[si + 6], 0x00    ; Segment, the logical memory to load the file
+                                  ; is: 0x00 * 0x10 + 0x7E00 = 0x7E00
+        mov dword[si + 8], 0x01   ; 32 bit low address of LBA.
+        mov dword[si + 12], 0x00  ; 32 bit high address of LBA.
+                                  ; We will start at sector 2 but set 1 to LBA
+                                  ; Because the LBA is zero-based address.
+
+        mov dl, [DriveID]         ; DriveID param.
+        mov ah, 0x42              ; Use INT 13 Extensions - EXTENDED READ service.
+        int 0x13                  ; Call the Disk Service.
+        jc ReadError              ; Carry flag will be set if error.
+
+        ; 5. Loader code has been loaded to physical memory, jump to loader code and 
+        ; transfer control to it.
+        mov dl, [DriveID]
+        jmp 0x7E00
+      ```
+
+- To load the loader file the disk service we use is interrupt 0x13. with function code:
+  - `ah` is 0x42: We will use disk extension service: IBM/MS INT 13 Extensions - EXTENDED READ
+  - `dl` hold the driveID.
+  - `ds:si` hold `disk address packet`, this actually is a structure.
+    - Format of this structure:
+
+      |offset |size |Description                                    |
+      |0x00   |BYTE |Size of packet (0x10 or 0x18)                  |
+      |0x01   |BYTE |Reserved (0)                                   |
+      |0x02   |WORD |Number of blocks (sectors) to transfer         |
+      |0x04   |DWORD|-> transfer buffer (0x04-offset, 0x06-segment) |
+      |0x08   |QWORD|starting absolute block number                 |
+      |0x10   |QWORD|64 bit flat address of transfer buffer;        |
+      |       |     |used if DWORD at 0x04 is 0xFFFF:0xFFFF         |
+
+    - The size of the structure is 16 bytes.
+  - The last two words are the 64-bit logical block address. The loader file will be written into the second sector of the disk, Therefore, we use LBA is 1.
+    - Remember logical block address is zero-based address. Meaning that the first sector is sector 0 (boot sector), and the second sector is sector 1 and so on.
+
+- When we successfully read the loader file into memory, the next thing we are going to do is we are going to jump to the start of loader.
