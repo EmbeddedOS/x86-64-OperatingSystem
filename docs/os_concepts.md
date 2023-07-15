@@ -484,3 +484,74 @@
         ```
 
 - So from now, the kernel is actually on address 0x10000.
+
+### 17. Get memory map
+
+- We use system map service to get memory blocks. After we get the free memory information, the memory module will use the information to allocate memory.
+
+        ```assembly
+            ; 5. Get system memory map, let get first 20 bytes.
+        GetMemoryInfoStart:
+            mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov ecx, 0x14           ; Size of buffer for result, in bytes.
+            mov edi, 0x9000         ; ES:DI -> buffer result.
+            xor ebx, ebx            ; 0x00 to start at beginning of map.
+            int 0x15                ; Call the BIOS service.
+            jc NotSupport           ; Carry flag will be set if error.
+
+        GetMemoryInfo:
+            add edi, 0x14           ; Point DI to next 20 bytes to receive next memory
+                                    ; block.
+            mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov ecx, 0x14           ; Size of buffer for result, in bytes.
+            int 0x15                ; Call the BIOS service.
+            jc GetMemoryDone        ; Carry flag will be set if error. But if it is set,
+                                    ; this means, the end of memory blocks has already
+                                    ; been reached.
+            test ebx, ebx           ; If ebx is none zero, that means we don't reach the
+            jnz GetMemoryInfo       ; end of list, so we need to get next block.
+
+        GetMemoryDone:
+        ```
+
+- We will get all memory map (physical memory) from 0 to the end.
+
+### 18. Test A20 line
+
+- The A20 line is introduced in the old machines, back in the day when machines had 20-bit address, we can address memory of 2^20 which is 1MB.
+- But later machines come with address bus wider than 20 bits. For compatibility purposes, A20 line of the address bus is OFF. So when the address is higher than 1MB, the address will get truncated as if it starts from 0 again.
+
+- Our system runs on the 64-bit processor which has address wider than 20 bits. If we try to access memory with A20 line disabled, we will end up only accessing even megabytes because A20 line bit is zero. And any address we are gonna access is actually the address with bit 20 cleared.
+
+- Therefore we need to toggle A20 line to access all the memory.
+
+- There are different ways to activate A20 line and each method is not guaranteed to be working across all the different machines. But newer machines seem to have A20 line enabled by default.
+
+- We assume our machines enabled A20 line. But we still need to check if it is enabled or not.
+
+- To test A20 line is very simple. We will try to access memory at address 0x107C00 , if A20 is not enabled, the value we get will be from address 0x07C00.
+  - If enable:      0001 0000 0111 1100 0000 0000
+  - If disable:     0000 0000 0111 1100 0000 0000
+
+  - IF A20 line is off, then bit 20th will be 0.
+  - We choose this address because that is start address of boot code and the boot code has done its work, we reuse that memory to test.
+
+- Our test A20 line assembly code:
+
+        ```assembly
+            ; 6. Check if A20 line is enabled on machine or not.
+        TestA20lLine:
+            mov ax, 0xFFFF
+            mov es, ax                      ; Set extra segment to 0xFFFF
+            mov word[ds:0x7C00], 0xA200     ; Set 0xA200 to address 0x7C00.
+            cmp word[es:0x7C10], 0xA200     ; compare value at address 0x107C00 with
+                                            ; 0xA200.
+            jne SetA20LineDone              ; If not equal, means previous instruction
+                                            ; actually reference to address 0x107C00.
+            mov word[0x7C00], 0xB200        ; If equal, will make a test with different
+            cmp word[es:0x7C10], 0xB200     ; value to confirm.
+            je NotSupport                   ; If it actually disable A20 line we exit.
+
+        ```

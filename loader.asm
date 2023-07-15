@@ -40,36 +40,44 @@ LoadKernel:
     int 0x13                    ; Call the Disk Service.
     jc ReadError                ; Carry flag will be set if error.
 
+    ; 5. Get system memory map, let get first 20 bytes.
 GetMemoryInfoStart:
-    mov eax, 0xE820
-    mov edx, 0x534D4150
-    mov ecx, 0x14
-    mov edi, 0x9000
-    xor ebx, ebx
-    int 0x15
-    jc NotSupport
+    mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+    mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+    mov ecx, 0x14           ; Size of buffer for result, in bytes.
+    mov edi, 0x9000         ; ES:DI -> buffer result.
+    xor ebx, ebx            ; 0x00 to start at beginning of map.
+    int 0x15                ; Call the BIOS service.
+    jc NotSupport           ; Carry flag will be set if error.
 
 GetMemoryInfo:
-    add edi, 0x14
-    mov eax, 0xE820
-    mov edx, 0x534D4150
-    mov ecx, 0x14
-    int 0x15
-    jc GetMemoryDone
-    test ebx, ebx
-
-    jnz GetMemoryInfo
+    add edi, 0x14           ; Point DI to next 20 bytes to receive next memory
+                            ; block.
+    mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+    mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+    mov ecx, 0x14           ; Size of buffer for result, in bytes.
+    int 0x15                ; Call the BIOS service.
+    jc GetMemoryDone        ; Carry flag will be set if error. But if it is set,
+                            ; this means, the end of memory blocks has already
+                            ; been reached.
+    test ebx, ebx           ; If ebx is none zero, that means we don't reach the
+    jnz GetMemoryInfo       ; end of list, so we need to get next block.
 
 GetMemoryDone:
+    ; 6. Check if A20 line is enabled on machine or not.
 TestA20lLine:
     mov ax, 0xFFFF
-    mov es, ax
-    mov word[ds:0x7C00], 0xA200
-    cmp word[es:0x7C10], 0xA200
-    jne SetA20LineDone
-    mov word[0x7C00], 0xB200
-    cmp word[es:0x7C10], 0xB200
-    je NotSupport 
+    mov es, ax                      ; Set extra segment to 0xFFFF
+    mov word[ds:0x7C00], 0xA200     ; Set 0xA200 to address 0x7C00.
+    cmp word[es:0x7C10], 0xA200     ; Compare value at address 0x107C00 with
+                                    ; 0xA200.
+    jne SetA20LineDone              ; If not equal, means previous instruction
+                                    ; actually reference to address 0x107C00.
+    mov word[0x7C00], 0xB200        ; If equal, will make a test with different
+    cmp word[es:0x7C10], 0xB200     ; value to confirm.
+    je NotSupport                   ; If it actually access same the memory
+                                    ; location, that means the machine actually
+                                    ; disable A20 line, so we will exit.
 
 SetA20LineDone:
     xor ax, ax
