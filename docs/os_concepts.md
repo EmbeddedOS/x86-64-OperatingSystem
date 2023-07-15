@@ -402,3 +402,10 @@
     - Remember logical block address is zero-based address. Meaning that the first sector is sector 0 (boot sector), and the second sector is sector 1 and so on.
 
 - When we successfully read the loader file into memory, the next thing we are going to do is we are going to jump to the start of loader.
+
+### 15. Check long mode is supported
+
+- After load the loader file, the loader code will be run, we need to check if the CPU support long mode or not. Modern processors should support long mode. And we need make another check 1GB page support or not also.
+
+- To do make checks, we will use an special instruction `cpuid` which returns processor identification and feature information. By pass different numbers to `eax` we will get different information.
+  - We pass the `0x80000001` to `eax` means we get the information `Extended Processor Signature and Extended Feature Bits.`

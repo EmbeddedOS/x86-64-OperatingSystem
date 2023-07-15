@@ -68,7 +68,7 @@ LoadLoader:
 
     ; 5. Loader code has been loaded to physical memory, jump to loader code and 
     ; transfer control to it.
-    mov dl, [DriveID]
+    mov dl, [DriveID]           ; Pass the DriveID to the loader.
     jmp 0x7E00
 
 NotSupport:
@@ -90,7 +90,7 @@ DriveID:            db 0
 Message:            db "An error is occured when booting system."
 MessageLen:         equ $-Message
 
-# Disk Address Packet Structure.
+; Disk Address Packet Structure.
 ReadPacket:         times 16 db 0
 
 ; Clear memory from current address to address at byte 446th (0x1BE).
