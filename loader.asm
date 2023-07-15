@@ -23,19 +23,22 @@ Start:
     test edx, (1<<26)       ; Bit 26: 1-GByte pages are available if 1.
     jz NotSupport           ; If zero flag is set, CPU doesn't support.
 
+    ; 4. Load the kernel file to address 0x0010000.
 LoadKernel:
     mov si, ReadPacket
-    mov word[si], 0x10
-    mov word[si + 2], 0x64
-    mov word[si + 4], 0x00
-    mov word[si + 6], 0x1000
-    mov dword[si + 8], 0x06
-    mov dword[si + 12], 0x00
+    mov word[si], 0x10          ; Packet size is 16 bytes.
+    mov word[si + 2], 0x64      ; We will load 100 sectors from the disk.
+    mov word[si + 4], 0x00      ; Memory offset.
+    mov word[si + 6], 0x1000    ; Memory segment. So, we will load the kernel
+                                ; code to physical memory at address: 0x1000 *
+                                ; 0x10 + 0x00 = 0x100000
+    mov dword[si + 8], 0x06     ; We load from sector 7 from hard disk image to
+    mov dword[si + 12], 0x00    ; sector 107.
 
-    mov dl, [DriveID]
-    mov ah, 0x42
-    int 0x13
-    jc ReadError
+    mov dl, [DriveID]           ; DriveID param.
+    mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
+    int 0x13                    ; Call the Disk Service.
+    jc ReadError                ; Carry flag will be set if error.
 
 GetMemoryInfoStart:
     mov eax, 0xE820

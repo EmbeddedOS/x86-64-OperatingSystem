@@ -11,7 +11,11 @@ An Operating System based on x86-64 architecture.
 
 - this is done by run [image.sh](image.sh) script, the output image is `boot.img` file.
 
-## 2. Simulate the OS
+## 2. Build the OS
+
+- The OS using make to build final image.
+
+## 3. Simulate the OS
 
 - To simulate the OS, we can use Bochs x86 Emulator 2.7, first generate a bochs configuration file (this is done automatically by run [image.sh](image.sh) script). And then, `make` to build our OS. And finally run `bochs` command to start simulating.
 

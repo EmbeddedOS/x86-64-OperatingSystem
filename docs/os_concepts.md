@@ -409,3 +409,78 @@
 
 - To do make checks, we will use an special instruction `cpuid` which returns processor identification and feature information. By pass different numbers to `eax` we will get different information.
   - We pass the `0x80000001` to `eax` means we get the information `Extended Processor Signature and Extended Feature Bits.`
+  - But before we get the information, we need to check if the CPU is provided it or not.
+
+        ```assembly
+        Start:
+        ; 1. Get DriveID from boot-code.
+        mov [DriveID], dl
+
+        ; 2. Check CPU support getting "Extended Processor Signature and Extended
+        ; Feature Bits." information.
+        mov eax, 0x80000000     ; Get information "EAX Maximum Input Value for
+                                ; Extended Function CPUID Information." of CPU.
+        cpuid
+        cmp eax, 0x80000001
+        jb NotSupport           ; Jump if maximum input value is less than
+                                ; 0x80000001, the information that we want to get.
+
+        ; 3. Check if long mode is supported or not.
+        mov eax, 0x80000001     ; We will get CPU information: "Extended Processor
+                                ; Signature and Extended Feature Bits."
+        cpuid
+        test edx, (1<<29)       ; Bit 29: Intel® 64 Architecture available if 1.
+        jz NotSupport           ; If zero flag is set, CPU doesn't support.
+        test edx, (1<<26)       ; Bit 26: 1-GByte pages are available if 1.
+        jz NotSupport           ; If zero flag is set, CPU doesn't support.
+        ```
+
+### 16. Load kernel file
+
+- The main purpose of the loader is load kernel. So we need to create a new file kernel.asm which contains the kernel code.
+
+- The memory map until now:
+
+              Memory
+      |-------------------| Max size
+      |      Free         | -> we will use this region for kernel code.
+      |-------------------|0x00100000
+      |      Reserved     |
+      |-------------------| 0x80000
+      |      Free         |
+      |-------------------|
+      |      Loader       | 0x7e00
+      |-------------------|
+      |     MBR code      | 0x7c00
+      |-------------------|
+      |      Free         | -> We used this region for stack.
+      |-------------------|
+      | BIOS data vectors |
+      |-------------------| 0
+
+- The memory map is different depends on the BIOS and CPU version, so we need to check if the memory is available or not (Some region can be spent for hardware, for example.), this is done by calling the BIOS service.
+
+- We will choose to load the kernel at address 0x100000, we will check it is available before load the kernel file to it.
+
+- And we want to load 100 sectors of data roughly 50 kilobytes which is enough for our kernel.
+
+        ```assembly
+            ; 4. Load the kernel file to address 0x0010000.
+        LoadKernel:
+            mov si, ReadPacket
+            mov word[si], 0x10          ; Packet size is 16 bytes.
+            mov word[si + 2], 0x64      ; We will load 100 sectors from the disk.
+            mov word[si + 4], 0x00      ; Memory offset.
+            mov word[si + 6], 0x1000    ; Memory segment. So, we will load the kernel
+                                        ; code to physical memory at address: 0x1000 *
+                                        ; 0x10 + 0x00 = 0x100000
+            mov dword[si + 8], 0x06     ; We load from sector 7 from hard disk image to
+            mov dword[si + 12], 0x00    ; sector 107.
+
+            mov dl, [DriveID]           ; DriveID param.
+            mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
+            int 0x13                    ; Call the Disk Service.
+            jc ReadError                ; Carry flag will be set if error.
+        ```
+
+- So from now, the kernel is actually on address 0x10000.
