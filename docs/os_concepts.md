@@ -596,6 +596,235 @@
 
 - Values for video mode ([BIOS video mode](http://www.ctyme.com/intr/rb-0069.htm)):
 
-text/ text pixel   pixel   colors disply scrn  system
-grph resol  box  resolution       pages  addr
-03h = T  80x25  8x8   640x200   16       4   B800 CGA,PCjr,Tandy
+    text/ text pixel   pixel   colors disply scrn  system
+    grph resol  box  resolution       pages  addr
+    03h = T  80x25  8x8   640x200   16       4   B800 CGA,PCjr,Tandy
+
+### 20. Protected mode
+
+- What do we do to switch to protected mode?
+  - Loading GDT Global Descriptor Table and IDT Interrupt Descriptor Table.
+  - Enable Protected Mode.
+  - Jump to Protected Mode Entry.
+
+- **Global Descriptor Table** is a structure in memory created by us and is used by CPU to protect the memory.
+    |       NULL      |
+    |    Descriptor   |
+    |    Descriptor   |
+    |    Descriptor   |
+    |    Descriptor   |
+    |    Descriptor   |
+    |        ...      |
+
+  - Each table entry here describes a block of memory or segment and it takes up 8 bytes. The first entry should be entry.
+
+  - We can have more than 8000 entries. But we only need at most 5 entries for our OS.
+  - When the processor accesses memory, the value in segment register is actually an index within the GDT.
+    - NOTE: This is different than we saw in real mode where the value in segment register gets shifted 4 bits and added to the offset.
+  - In PM, segment registers hold the **index** instead of base address.
+
+- For example, in protected mode, we run:
+  - `mov eax, [ds:0x1000]`: this instruction will copy the value in `ds` 0x1000 to register `eax`.
+  - Suppose `ds` holds value 16.
+  - Remember each table entry takes up 8 bytes. So `16 here points to the third entry.
+    - The segment registers also hold other information in the lower 3 bits.
+  - The descriptor entry includes base address of the segment, segment limit and segment attributes.
+  - Suppose that the third entry have base address are 0. So The base of this segment we are about to access is 0. Then we add the offset to the base which produces the address 0x1000.
+  - The descriptor entry includes the segment attributes. So if we don't have right to access the memory, this operation will fall and the exception is generated.
+  - If all the checks are done, we can access the data in that memory location.
+
+- So when running in protected mode, setting up different segments with different privilege levels, we can protect the essential data from accessing by user applications.
+
+- **Interrupt Descriptor Table**.
+  - Basically, an interrupt is a signal sent from a device to CPU and if CPU accept the interrupt, it will stop the current task and process the interrupt event.
+  - Different numbers are assigned to different interrupts. For example, when we press a key, the interrupt request number we will get is 1.
+  - And also, a handler or interrupt service routine is used so that cpu will call that handler to do the specific task when an interrupt is fired.
+  - In order to find that handler, we use **interrupt descriptor table** which could have a total of 256 entries.
+  - This table would be a structure in memory created by us similar GDT. But the fields of IDT entries are different from those of GDT.
+
+- For example:
+  - suppose the interrupt request number 3 is fired, CPU will get the corresponding item in the IDT.
+  - In the IDT entry, we have the information about which segment the interrupt service routine is at and the offset of the routine.
+  - In this example, the base address of the segment this handler locates at is 0 and the offset is 0x5000.
+  - Then we get the address of the interrupt handler and the code of the handler is executed.
+
+- Privilege rings or privilege levels.
+  - We have 4 rings from ring 0 to ring 3 in x86 architecture.
+  - The ring 0 id the most privileged level where we can execute all the instructions and access all the hardware.
+  - The ring 3 is the least privileged level where we can only execute a subset of instructions and accessing hardware is generally not allowed.
+  - Although CPU offers 4 levels of privileges, we only use 2 of them in our OS.
+    - Kernel run in ring 0.
+    - User applications run in ring 3.
+  - How do we know what level we are currently running at?
+    - The CPL Current Privilege level will tell us. It's stored in the lower 2 bits of `cs` and `ss` segment registers.
+      - When the 2 bits is zero means we are in ring 0. If they are 3, means we are running in ring 3.
+
+  - In protected mode, the CPL and RPL (Requested Privilege Level) will compare against DPL (Descriptor Privilege Level), if the check fails the CPU is generated.
+    - DPL is stored in Descriptor Table entries, and RPL is stored in the selectors.
+
+  - Consider follow example:
+     15           3  2  1       0
+    |Selector Index|TI |   RPL   |
+    - The segment selector, as its name implies, holds the index of GDT or LDT (Local Descriptor Table) entries.
+    - TI means Table Indicator.
+    - When TI = 0 the GDT is used and when TI = 1 the LDT is used.
+      - We always set it to 0. Since we don't use LDT in our system. RPL is stored in the lower 2 bits.
+    - Suppose we load the selector which points to the third entry of GDT in ds register, the privilege checks is performed.
+    - The CPL is stored in `cs` and `ss` register, RPL specified in this selector are compared with DPL in the third GDT entry. If the CPL and RPL is numerically smaller or equal to DPL, the privilege checks pass.
+
+- Descriptor Entry:
+  - Code segment.
+  - Data segment.
+
+- General structure of data and code segment descriptors:
+ 63        56         52              48         40          16               0
+|Base [31:21]|Attributes| Limit [19:16] |Attributes|Base [23:0]| Limit [15:0] |
+
+  - We have base address of the segment, and the limit which specifies the size of the segment.
+  - The attribute includes DPL field, writable, accessed bits etc.
+  - For example, if the DPL of the descriptor is 0, then we are not allowed this descriptor in the segment registers if we are running in ring 3.
+
+- We will not going to detail about descriptor, because the **segmentation is disabled in 64 bit mode**. For example, the base and limits of descriptors are ignored. The memory like flat memory starting from 0 and spanning all of the memory. And also, the segment register we use in 64-bit mode is only `cs` register. We don't care about `ds` and `es` registers. `ss` register is only used in context switch.
+
+- But we also need to know about the general idea of what GDT, IDT and selectors are and how they interact with each other.
+
+- Let enable the the protected mode, first, we need to disable all interrupt so that processor will not respond to the interrupt. We will re-enable them when we switch to long mode.
+
+- After disable interrupts, we load the GDT, IDT structure, them us stored in memory and we need to tell the processor where they are located. There is a register called Global Descriptor Table Register which points to the location of the GDT in memory and we load the register with the address of gdt and the size of GDT.
+
+- The bits [40-47] in data or code segment descriptor have structure:
+     7 6 5 4 3  0
+    |P|DPL|S|TYPE|
+  - The s means the segment descriptor is a system descriptor or not. We need to set it to 1 meaning that it's a code or data segment descriptor.
+  - The type field is assigned to the value 0010 or 1010 in binary, we assign 1010 means that the segment is non-conforming readable code segment.
+    - The major difference between conforming and non-conforming code segment is that the CPL is not changed when the control is transferred to higher privilege conforming code segment from lower one. Conforming code segment in not used in our system. As for non-conforming code.
+  - The DPL indicates privilege level of the segment. We will set 0x00, when we run in code segment. So when we load the descriptor to `cs` register, the CPL will be 0 indicating that we are at ring 0.
+  - P - present bit which means we need to set it to 1 when we load the descriptor.
+
+- Next byte us a combination of segment size and attributes bits [48-55]:
+     7 6 6 4 3   0
+    |G|D|O|A|LIMIT|
+
+  - The lower half is the upper 4 bits of the segment size. we will set up to maximum size.
+  - A - The Available bit can be used by the system software, we will ignore it by set 0.
+  - O - Operation bit, if 1 means that the default operand size is 0. Otherwise, the default operand size is 16 bits. We will set to 1 in PM.
+  - G - Granularity bit. We simply set it to 1 meaning that the size field is scaled by 4KB. Which gives us maximum of 4GB of segment size.
+
+- The last byte of code segment is upper 8 bits of base address. We simply set it to 0.
+- So the code segment descriptor look like:
+
+        ```assembly
+        CodeSegDes:         ; Next entry is Code Segment Descriptor.
+            dw 0xFFFF       ; First two byte is segment size, we set to maximum size for
+                            ; code segment.
+            db 0, 0, 0      ; Next three byte are the lower 24 bits of base address, we
+                            ; set to 0, means the code segment starts from 0.
+            db 0b10011010   ; Next byte specifies the segment attributes, we will set
+                            ; code segment attributes: P=1, DPL=00, S=1, TYPE=1010.
+            db 0b11001111   ; Next byte is segment size and attributes, we will set code
+                            ; segment attributes and size: G=1,D=1,O=0,A=0,LIMIT=1111.
+            db 0            ; Last byte is higher 24 bits of bit address, we set to 0,
+                            ; means the code segment starts from 0.
+        ```
+
+- Next, we need define segment descriptor for data segment, these descriptors are very similar (base address and size), different is type field. We set it to 0010 in binary means the segment is readable and writable.
+
+- After define GDT we need to load it, first we define GDT32 pointer to load:
+
+        ```assembly
+        GDT32Len: equ $-GDT32
+
+        GDT32Pointer: dw GDT32Len - 1   ; First two bytes is GDT length.
+                      dd GDT32          ; Second is GDT32 address.
+        ```
+
+- Load it with `lgdt` instruction:
+  - `lgdt [GDT32Pointer]     ; Load global descriptor table.`
+  - Note that the default operand size of `lgdt` instruction is 16 bits in 16-bit mode. If the operand size is 16 bits, the address of GDT pointer is actually 24 bits. But here we simply define the address to be 32 bits. And assign the address of GDT to the lower 24 bits.
+
+- Next thing we are going to do is load IDT, just like global descriptor table register, we also have interrupt descriptor table register and we need to load the register with the address and size of IDT, we will use `lidt` instruction.
+  - Since we don't want to deal with interrupts until we jump to long mode, we load the register with Invalid address and size zero.
+
+        ```assembly
+            lidt [IDT32Pointer]     ; Load an invalid IDT (NULL) because we don't deal
+                                    ; with interrupt until switching to Long Mode.
+
+        IDT32Pointer: dw 0              ; First two bytes is IDT length.
+                    dd 0              ; Second is IDT32 address.
+        ```
+  - Note that there is one type of interrupt called non-maskable interrupt which is not disabled by the instruction `cli`. So non-maskable interrupt occurs, the processor will find in memory, if it is invalid address the CPU exception will be generated, our system will be reset.
+    - Non-maskable interrupt indicate that non-recoverable hardware errors such as RAM error, for example.
+
+- After load GDT and IDT, we enable protected mode by setting the Protected Mode Enable bit[0] in `cr0` register (Control register), which register changes or controls behavior of the processor.
+
+        ```assembly
+            mov eax, cr0            ; We enable Protected Mode by set bit 0 of Control
+            or eax, 0x01            ; register, that will change the processor behavior.
+            mov cr0, eax
+        ```
+
+- Last thing we need to do is load the `cs` segment register with the new code segment descriptor, we just define in the gdt table. Loading code segment descriptor to `cs` register is different from another segment registers. We can not using `mov` to do this, instead we jump instruction to do it.
+
+- The code segment descriptor in this example is the second entry which is 8 bytes away from the beginning of the GDT. So the selector we use is index being 8, and T=0 meaning that we use GDT and the RPL is 0. Therefore when CPU performs privilege checks, the RPL is 0 and is equal to the DPL of code segment, the check will pass. So we simply specify the offset 8, we want to jump to the protected mode entry which is label we will define.
+
+- Before we define the label, we use directive `bits` to indicate that the following code is running at 32-bit mode.
+
+        ```assembly
+
+        jmp 0x08:ProtectedModeEntry
+
+        [BITS 32]
+        ProtectedModeEntry:
+        ```
+
+- After entry the PM, we need to initialize other segment registers (`ds`, `es`, `ss` registers):
+  - We load them with data segment descriptors. The data segment descriptor is the third entry 0x08 + 0x98 = 0x10
+- And also set the `sp` to 0x7C00
+        ```assembly
+
+        jmp 0x08:ProtectedModeEntry
+
+        [BITS 32]
+        ProtectedModeEntry:
+        mov ax, 0x10
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        mov esp, 0xc7C00
+        ```
+
+- That is done for protected mode, we can print something.
+
+### 21. Long Mode
+
+- Long mode consists of two sub modes 64-bit mode and compatibility mode (we not implement this mode).
+- So, our kernel and applications run in 64-bit mode. When we jump to kernel entry will stay there and never leave this mode until we shutdown the system.
+
+- Protected mode is only used to prepare for long mode. Immediately after jumping to protected mode, we prepare and switch to long mode which is a little bit complex, than preparing for protected mode.
+
+- Switch to long mode require some steps:
+  - 1. Load GDT
+  - 2. Load IDT
+  - 3. Prepare for paging and enable it
+  - 4. Enable long mode.
+  - 5. Jump to long mode entry.
+
+- NOTE: we have to enable paging before entering long mode, since segmentation is disabled in 64-bit mode. We will use paging to protect memory instead.
+- We can enable long mode by using the specific registers and load the new code segment descriptor in `cs` register using jump instruction.
+
+- GDT is still used in 64-bit mode and the field of GDT entries are slightly different. Regarding to segment registers, `cs` register is used, however the contents of `ds`, `es`, `ss` registers are all ignored. The contents in hidden parts of those registers are also ignored. The memory segment referenced by those segment registers are treated as if the base address is 0, and the size of the segment is the maximum size the processor can address. Actually CPU doesn't perform segment limit checks as we saw in PM. So generally we don't need data segment descriptors.
+- But there is one special case where we need the data segment descriptors, that is, when we try to get from ring 0 to ring 3 to run user applications. Because getting from ring 0 to ring 3 requires us to add a valid data segment descriptor to load into `ss` register.
+
+- So the code and data segment will be still used.
+
+- The content of `ds`, `es`, `ss` registers are all ignored. But cpu still performs checks to see if the descriptor is valid. If it is an invalid descriptor, cpu will emit an exception.
+
+- For example: `mov eax, [ds:0x1000]`
+- `ds` always is ignored and the base address is always 0.
+
+- The IDT is still used in 64-bit mode. Each entry takes up 16 bytes, whereas in PM is 8 bytes.
+
+- The privilege levels are the same with PM.
+
+- If we want to load a descriptor into segment register, the index should point to valid descriptor. And CPL, RPL will compare against DPL in the sector.
+- In 64 bit mode, it's really rare to load segment descriptors by ourselves. In our system, we load code segment descriptors when we jump to 64 bit mode and load data segment descriptor in `ss` register.

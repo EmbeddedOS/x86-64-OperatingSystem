@@ -102,7 +102,8 @@ SwitchToProtectedMode:
     mov cr0, eax
 
     jmp 0x08:PMEntry        ; Jump to Protected Mode Entry with selector select 
-                            ; index 1 in GDT (code segment descriptor).
+                            ; index 1 in GDT (code segment descriptor) so 
+                            ; segment selector: Index=000000001, TI=0, RPL=00
 
 ; Halt CPU if we encounter some errors.
 ReadError:
@@ -149,7 +150,8 @@ IDT32Pointer: dw 0              ; First two bytes is IDT length.
 [BITS 32]
 PMEntry:
     ; 10. Initialize segment registers to data segment descriptor entry, the
-    ; data segment descriptor is third entry in GDT: 0x08 + 0x08 = 0x10
+    ; data segment descriptor is third entry in GDT so we have segment selector:
+    ; Index=000000002, TI=0, RPL=00 in binary.
     mov ax, 0x10
     mov ds, ax
     mov es, ax
