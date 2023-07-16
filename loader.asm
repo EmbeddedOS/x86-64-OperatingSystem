@@ -1,5 +1,5 @@
 [BITS 16]
-[ORG 0x7e00]
+[ORG 0x7E00]
 
 Start:
     ; 1. Get DriveID from boot-code.
@@ -90,20 +90,19 @@ SetVideoMode:
                             ; AL=0x03 use the base address to print at 0xB8000.
     int 0x10                ; Call the service.
 
-    mov si, Message         ; Point SI to message.
-    mov ax, 0xB800
-    mov es, ax              ; Set extra segment to 0xB800, so memory we access
-                            ; via this register will be: 0xB8000 + offset
-    xor di, di
-    mov cx, MessageLen
+    ; 9. Switch to protected mode to prepare for long mode.
+SwitchToProtectedMode:
+    cli                     ; Disable interrupts.
+    lgdt [GDT32Pointer]     ; Load global descriptor table.
+    lidt [IDT32Pointer]     ; Load an invalid IDT (NULL) because we don't deal
+                            ; with interrupt until switching to Long Mode.
 
-PrintMessage:
-    mov al, [si]
-    mov [es:di], al         ; Copy character to screen address.
-    mov byte[es:di+1], 0x0A ; Copy attribute byte of character also.
-    add di, 0x02            ; di point to next position on screen.
-    add si, 0x01            ; si point to next byte in message.
-    loop PrintMessage
+    mov eax, cr0            ; We enable Protected Mode by set bit 0 of Control
+    or eax, 0x01            ; register, that will change the processor behavior.
+    mov cr0, eax
+
+    jmp 0x08:PMEntry        ; Jump to Protected Mode Entry with selector select 
+                            ; index 1 in GDT (code segment descriptor).
 
 ; Halt CPU if we encounter some errors.
 ReadError:
@@ -113,6 +112,56 @@ End:
     jmp End
 
 DriveID:        db 0
-Message:        db "Set text mode."
-MessageLen:     equ $-Message
 ReadPacket:     times 16 db 0
+
+; Global Descriptor Table Structure, we define 3 entries with 8 bytes for each.
+GDT32:
+    dq 0            ; First entry is NULL.
+CodeSegDes:         ; Next entry is Code Segment Descriptor.
+    dw 0xFFFF       ; First two byte is segment size, we set to maximum size for
+                    ; code segment.
+    db 0, 0, 0      ; Next three byte are the lower 24 bits of base address, we
+                    ; set to 0, means the code segment starts from 0.
+    db 0b10011010   ; Next byte specifies the segment attributes, we will set
+                    ; code segment attributes: P=1, DPL=00, S=1, TYPE=1010.
+    db 0b11001111   ; Next byte is segment size and attributes, we will set code
+                    ; segment attributes and size: G=1,D=1,O=0,A=0,LIMIT=1111.
+    db 0            ; Last byte is higher 24 bits of bit address, we set to 0,
+                    ; means the code segment starts from 0.
+DataSegDes:         ; Next entry is Data Segment Descriptor. We will set data
+                    ; and code segment base on same memory (address + size).
+    dw 0xFFFF
+    db 0, 0, 0
+    db 0b10010010   ; Different between data segment and code segment descriptor
+                    ; is the type segment attributes: TYPE=0010 means this a
+                    ; WRITABLE segment.
+    db 0b11001111
+    db 0
+
+GDT32Len: equ $-GDT32
+
+GDT32Pointer: dw GDT32Len - 1   ; First two bytes is GDT length.
+              dd GDT32          ; Second is GDT32 address.
+
+IDT32Pointer: dw 0              ; First two bytes is IDT length.
+              dd 0              ; Second is IDT32 address.
+
+[BITS 32]
+PMEntry:
+    ; 10. Initialize segment registers to data segment descriptor entry, the
+    ; data segment descriptor is third entry in GDT: 0x08 + 0x08 = 0x10
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov esp, 0x7C00
+
+PrintMessage:
+    mov byte[0xB8000], 'P'     ; Copy character to screen address.
+    mov byte[0xB8001], 0x0A    ; Copy attribute byte of character also.
+
+PMEnd:
+    hlt
+
+Message:        db "Protected Mode."
+MessageLen:     equ $-Message

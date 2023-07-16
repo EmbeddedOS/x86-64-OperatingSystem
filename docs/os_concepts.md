@@ -593,3 +593,9 @@
                 add si, 0x01            ; si point to next byte in message.
                 loop PrintMessage
             ```
+
+- Values for video mode ([BIOS video mode](http://www.ctyme.com/intr/rb-0069.htm)):
+
+text/ text pixel   pixel   colors disply scrn  system
+grph resol  box  resolution       pages  addr
+03h = T  80x25  8x8   640x200   16       4   B800 CGA,PCjr,Tandy
