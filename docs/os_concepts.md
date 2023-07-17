@@ -828,3 +828,127 @@
 
 - If we want to load a descriptor into segment register, the index should point to valid descriptor. And CPL, RPL will compare against DPL in the sector.
 - In 64 bit mode, it's really rare to load segment descriptors by ourselves. In our system, we load code segment descriptors when we jump to 64 bit mode and load data segment descriptor in `ss` register.
+
+- Descriptor Entry in long mode:
+  - Long mode ignore almost field in 8 bytes of descriptor entries which leaves us only few bits in attributes field to set.
+    - Bit[42] - C: conforming bit: we only use non-conforming code segment.
+    - Bit[43] - 1: we set bit [43:44] to 11 indicate that descriptor is code segment descriptor.
+    - Bit[44] - 1
+    - Bit[45:46] - DPL : the privilege level we will set it to 0.
+    - Bit[47] - P - Present bit should be 1.
+    - Bit[53] - L - Long bit, which is new attribute bit, set it to 1 means we are running on 64 bit mode. If 0, we are run on compatibility mode.
+    - Bit[54] - D - only valid value is 0 when we set long bit = 0.
+
+- The data segment descriptor also has very few bits we can set.
+  - Bit[41] - W - Writable, we will set to 1.
+  - Bit[43] - 0 - bit[43:44] = 10 mean the descriptor is data segment descriptor.
+  - Bit[44] - 1
+  - Bit[45] - DPL - privilege bit should be 0.
+  - Bit[46] - P - present bit should be 1.
+
+- There are two terms **Virtual Address** and **Physical Address**. The virtual address is basically we in our code and **these addresses do not directly go to the memory bus**.
+  - Virtual addresses need to be mapped to physical addresses by using Memory Management Unit or MMU.
+  - The physical address is the address put on the memory bus and the data in that memory location is accessed.
+  - There are only few cases where we use physical address in our code directly.
+  - In 64 bit mode, we have 64 bits of virtual address space. But not all the virtual addresses are available to us.
+
+- The canonical address is the address with the bits 63 through to the Most-Significant implemented bit are either all ones or all zeros. For example, suppose we have a 48 bit address here from bit[0:47]. So we can only set the upper 16 bits which is from bit 48 to bit 63 to all ones.
+
+- Generally, when we use non-canonical address, the CPU exception is generated. Also, note that Intel has added support for 57-bit virtual address in recent processors which are able to address 128petabyte memory space. IN our OS, we assumption that we only support 48 bit virtual address, so that our system can run on older machines.
+
+- Memory map setup for 64 bit mode:
+
+              Memory
+      |   Kernel space    |
+      |                   | 0xFFFF800000000000
+      |-------------------|
+      |                   | 0xFFFF7FFFFFFFFFFF
+      |   Non-canonical   |
+      |     Addresses     | 0x800000000000
+      |-------------------|
+      |    User space     | 0x7FFFFFFFFFFF
+      |                   |
+      |-------------------| 0
+
+- The user space and kernel space are the address space available to us. The `Non-canonical Addresses` region are the address range where all the addresses are Non-canonical address which cannot be used. You can check out the bit 47 and the upper 16 bits of these address yourself and you will find out they doesn't. conform to the canonical address.
+
+- And our kernel will be placed at the higher part of the memory space.
+
+- First thing we need to do in PM is enable paging, enable long mode requires us to setup and enable paging.
+
+        ```assembly
+            ; 11. Enable paging.
+            ; This bock of code basically finds a free memory area and initialize the
+            ; paging structure which is used to translate the virtual address to 
+            ; physical. The addresses (0x80000 to 0x90000) may used for BIOS data. We 
+            ; can use memory area from 0x70000 to 0x80000.
+            ; TODO: add detailed document about this block.
+            cld
+            mov edi, 0x80000
+            xor eax, eax
+            mov ecx, 0x10000/4
+            rep stosd
+
+            mov dword[0x80000], 0x81007
+            mov dword[0x81000], 0b10000111
+        ```
+
+- Then we load the GDT that we will use in 64-bit mode. Just like we did in protected mode.
+
+        ```assembly
+        ; Global Descriptor Table Structure for 64 bit mode, we define 3 entries with 8
+        ; bytes for each.
+        GDT64:
+            dq 0            ; First entry is NULL.
+        CodeSegDes64:       ; Next entry is Code Segment Descriptor.
+                            ; Almost field of the entry are ignored, so we will set them
+                            ; to 0.
+            dq 0x0020980000000000
+
+        GDT64Len: equ $-GDT64
+
+        GDT64Pointer: dw GDT64Len - 1   ; First two bytes is GDT length.
+                    dd GDT64          ; Next four bytes are GDT64 address.
+        ```
+
+- After load GDT, we will enable 64 bit mode by set necessary bits in some registers.
+  - In `cr4` bit cr4[5] is called Physical Address Extension or PAE bit. We have to set it to 1 before activating 64 -bit mode.
+
+- The next register is related to `cr3` register, we copy the address of page structure we just set up 0x80000 t0 `cr3` register.
+- The address loaded to `cr3` are physical address.
+
+- After we enable paging and enter long mode, the addresses in our code need to be mapped to physical addresses first and then sent to the bus. But if the we load new address in `cr3` register, we still need physical address instead of virtual address.
+
+- Then we can enable long mode. There is a model specific register called Extended Feature Enable Register, adn the bit 8 is long mode enable bit which should be set. To read and write a model specific register, we move the index of the register to `ecx`: `0xC0000080` in this case and execute read MSR `rdmsr` instruction. The return value is in `eax` register. So we set the bit 8 in eax using or instruction. Then write it back to the same register by using writer msr `wrmsr`.
+- Last thing we will do is enable paging by setting the bit 31 in register `cr0`.
+
+        ```assembly
+            ; 13. Enable 64-bit mode.
+            mov eax, cr4            ; Set bit 5 Physical Address Extension of Control
+            or eax, (1<<5)          ; register 4.
+            mov cr4, eax
+
+            mov eax, 0x80000        ; Setup the page structure we just setup 0x80000 to
+            mov cr3, eax            ; cr3 Control Register 3. By the way, all the
+                                    ; addresses we have seen so far are all physical
+                                    ; addresses because we don't enable paging.
+
+            mov ecx, 0xC0000080     ; Enable Long mode, using Extended Feature Enable
+            rdmsr                   ; Register, it is a special register. We need to get
+            or eax, (1 << 8)        ; it via index (0xC0000080) pass to ecx register,
+            wrmsr                   ; and then call read MSR instruction, result will
+                                    ; return to eax. So will set bit[8] in eax to enable
+                                    ; long mode and write back to the MSR register.
+            
+            mov eax, cr0            ; Enable Paging by set bit[31] on cr0 Control
+            or eax, (1 << 31)       ; Register 0.
+            mov cr0, eax
+        ```
+
+- The Long mode activated from Now. We need to jump to long mode entry to load the new code segment descriptor. We specify the segment selector 8, since each entry is 8 bytes and the code segment selector is the second entry and then the offset long mode entry.
+
+        ```assembly
+            jmp 0x08:LMEntry
+        ```
+
+- After jump to long mode code, we don't need initialize `ds`, `es`, `ss` because they are ignored. But will still need to initialize stack to 0x7C00.

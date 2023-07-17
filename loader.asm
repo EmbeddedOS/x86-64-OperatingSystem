@@ -118,7 +118,7 @@ ReadPacket:     times 16 db 0
 ; Global Descriptor Table Structure, we define 3 entries with 8 bytes for each.
 GDT32:
     dq 0            ; First entry is NULL.
-CodeSegDes:         ; Next entry is Code Segment Descriptor.
+CodeSegDes32:       ; Next entry is Code Segment Descriptor.
     dw 0xFFFF       ; First two byte is segment size, we set to maximum size for
                     ; code segment.
     db 0, 0, 0      ; Next three byte are the lower 24 bits of base address, we
@@ -126,10 +126,10 @@ CodeSegDes:         ; Next entry is Code Segment Descriptor.
     db 0b10011010   ; Next byte specifies the segment attributes, we will set
                     ; code segment attributes: P=1, DPL=00, S=1, TYPE=1010.
     db 0b11001111   ; Next byte is segment size and attributes, we will set code
-                    ; segment attributes and size: G=1,D=1,O=0,A=0,LIMIT=1111.
+                    ; segment attributes and size: G=1,D=1,L=0,A=0,LIMIT=1111.
     db 0            ; Last byte is higher 24 bits of bit address, we set to 0,
                     ; means the code segment starts from 0.
-DataSegDes:         ; Next entry is Data Segment Descriptor. We will set data
+DataSegDes32:       ; Next entry is Data Segment Descriptor. We will set data
                     ; and code segment base on same memory (address + size).
     dw 0xFFFF
     db 0, 0, 0
@@ -158,12 +158,69 @@ PMEntry:
     mov ss, ax
     mov esp, 0x7C00
 
-PrintMessage:
-    mov byte[0xB8000], 'P'     ; Copy character to screen address.
-    mov byte[0xB8001], 0x0A    ; Copy attribute byte of character also.
+    ; 11. Setup page structure memory for Paging.
+    ; This bock of code basically finds a free memory area and initialize the
+    ; paging structure which is used to translate the virtual address to 
+    ; physical. The addresses (0x80000 to 0x90000) may used for BIOS data. We 
+    ; can use memory area from 0x70000 to 0x80000.
+    ; TODO: add detailed document about this block.
+    cld
+    mov edi, 0x80000
+    xor eax, eax
+    mov ecx, 0x10000/4
+    rep stosd
 
-PMEnd:
+    mov dword[0x80000], 0x81007
+    mov dword[0x81000], 0b10000111
+
+    ; 12. Load GDT for 64-bit mode.
+    lgdt [GDT64Pointer]
+
+    ; 13. Enable 64-bit mode and jump to long mode entry.
+    mov eax, cr4            ; Set bit 5 Physical Address Extension of Control
+    or eax, (1<<5)          ; register 4.
+    mov cr4, eax
+
+    mov eax, 0x80000        ; Setup the page structure we just setup 0x80000 to
+    mov cr3, eax            ; cr3 Control Register 3. By the way, all the
+                            ; addresses we have seen so far are all physical
+                            ; addresses because we don't enable paging.
+
+    mov ecx, 0xC0000080     ; Enable Long mode, using Extended Feature Enable
+    rdmsr                   ; Register, it is a special register. We need to get
+    or eax, (1 << 8)        ; it via index (0xC0000080) pass to ecx register,
+    wrmsr                   ; and then call read MSR instruction, result will
+                            ; return to eax. So will set bit[8] in eax to enable
+                            ; long mode and write back to the MSR register.
+    
+    mov eax, cr0            ; Enable Paging by set bit[31] on cr0 Control
+    or eax, (1 << 31)       ; Register 0.
+    mov cr0, eax
+
+    jmp 0x08:LMEntry        ; Jump to long mode entry using segment selector 8.
+
+; Global Descriptor Table Structure for 64 bit mode, we define 3 entries with 8
+; bytes for each.
+GDT64:
+    dq 0            ; First entry is NULL.
+CodeSegDes64:       ; Next entry is Code Segment Descriptor.
+                    ; Almost field of the entry are ignored, so we will set them
+                    ; to 0.
+    dq 0x0020980000000000
+
+GDT64Len: equ $-GDT64
+
+GDT64Pointer: dw GDT64Len - 1   ; First two bytes is GDT length.
+              dd GDT64          ; Next four bytes are GDT64 address.
+
+[BITS 64]
+LMEntry:
+    ; 14. Initialize stack pointer.
+    mov rsp, 0x7C00
+
+    mov byte[0xB8000], 'L'
+    mov byte[0xB8001], '0xA'
+
+LMEnd:
     hlt
-
-Message:        db "Protected Mode."
-MessageLen:     equ $-Message
+    jmp LMEnd
