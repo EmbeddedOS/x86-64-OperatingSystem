@@ -1,3 +1,61 @@
+; The loader code is put on sectors [1:5] in our hard disk image, after the BIOS
+; found the boot sector, we will use the boot code to load the loader code into
+; physical memory at address 0x7E00. First of all, to prepare to long mode, we
+; need to check it is supported or not. That is done by using `cpuid`
+; instruction and it's service: "EAX Maximum Input Value for Extended Function 
+; CPUID Information.". After that we load 100 sectors [6:105] which we have
+; spent for our kernel code (51200 bytes are enough for our kernel code). Now
+; the physical memory look like:
+;              Memory
+;      |-------------------| Max size
+;      |      Free         | -> We will use this region for kernel code.
+;      |-------------------|0x00100000
+;      |      Reserved     |
+;      |-------------------| 0x80000
+;      |      Free         |
+;      |-------------------|
+;      |      Loader       | 0x7E00
+;      |-------------------|
+;      |     MBR code      | 0x7C00
+;      |-------------------|
+;      |      Free         | -> We used this region for stack.
+;      |-------------------|
+;      | BIOS data vectors |
+;      |-------------------| 0
+;
+; After that, we will check everything is fine for protected mode such as: valid
+; memory, A20 is already enable, etc. So, one thing we need to note is set video
+; mode, because after we switch to protected mode, we can not use BIOS service
+; anymore, so we need set video mode, and from that point, we can print to
+; screen via the video base address 0xB8000. Next thing we need to do is switch
+; to Protected Mode. To do this we need to prepare some thing:
+; - Load Global Descriptor Table: Main purpose of this table is management
+;   segment, decentralize permission to segments, set attributes to them such as
+;   readable, wriable, etc.
+; - Load Interrupt Descriptor Table: Register handler for interrupt lines.
+; But we will not deal with interrupts until we switch to Long Mode. So we will
+; load LDT with a NULL table. After switch to Protected Mode, we need to jump it
+; code segment with Protected Mode entry. PM provides a way to jump to segments,
+; `Segment Selector` that represents for index, permission, etc. of segment in
+; GDT. For example, the code segment descriptor is index 1 in the GDT, we have
+; selector equal 0b00001000 = 0x08.
+; The main purpose of protected mode in our system is preparing for Long mode,
+; because we can not jump from 16 bit mode to 64 bit mode, that is impossible.
+; So after we, switch to PM, we immediately prepare for long mode, there is list
+; job we need to do:
+; - Prepare for paging: why we need to do that? because we need to enable paging
+;   , and this require a structure to manage the current page. We will not run
+;   run on PM mode so we will load it with a dummy structure, we do that by
+;   selecting a free region about 0x70000 up to 0x80000.
+; - Load GDT: in long mode, almost fields at segment descriptor will be ignored.
+;   we will only set first entry is code segment (in Long mode, segmentation is 
+;   disabled), `ds`, `es`, `ss` are ignored also.
+; - Enable long mode by setting bits in special registers (cr4, cr3, msr).
+; - Enable paging by setting bit[31] in cr0 register.
+; After switch to long mode, final missions of loader code are relocated kernel
+; code from address 0x10000 to 0x200000 and finally jump to it. So from now we
+; can run kernel code and user application in 64 bit mode. Congratulation!
+
 [BITS 16]
 [ORG 0x7E00]
 
