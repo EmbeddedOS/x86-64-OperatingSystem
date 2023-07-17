@@ -952,3 +952,17 @@
         ```
 
 - After jump to long mode code, we don't need initialize `ds`, `es`, `ss` because they are ignored. But will still need to initialize stack to 0x7C00.
+
+## V. Exceptions and Interrupts Handling on the x86
+
+### 22. Jumping to Kernel
+
+- The kernel file is loaded into memory and are going to jump to the kernel. We relocate the kernel from 0x10000 to the memory 0x200000.
+
+- `cld` instruction clear direction flag so the move instruction will process the data from low memory address to high memory address. Which means the data is copied in forward direction. The destination address is stored in `rdi` register and source address is in `rsi` register.
+
+- Register `rcx` acts as a counter, since we want the move instruction to execute multiple times, move q-word will copy the 8 bytes data each time.
+  - We will move 51200 / 8 bytes to `rcx`. Because our kernel size is 512 sectors = 512 * 100 = 51200 bytes.
+
+- `rep movsq` repeat by quad-word.
+- After instruction, our kernel is copied into the address 0x200000.

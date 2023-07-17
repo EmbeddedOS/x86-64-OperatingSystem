@@ -218,9 +218,11 @@ LMEntry:
     ; 14. Initialize stack pointer.
     mov rsp, 0x7C00
 
-    mov byte[0xB8000], 'L'
-    mov byte[0xB8001], '0xA'
-
-LMEnd:
-    hlt
-    jmp LMEnd
+    ; 15. Relocate kernel from 0x10000 to 0x200000 and jump to it.
+    cld                 ; Clear direction flag.
+    mov rdi, 0x200000   ; Destination address.
+    mov rsi, 0x10000    ; Source address.
+    mov rcx, 51200/8    ; RCX acts as a counter, we will copy 100 sectors: 512
+                        ; * 100 = 51200 bytes.
+    rep movsq           ; Repeat quad-word one time.
+    jmp 0x200000        ; Jump to kernel entry.
