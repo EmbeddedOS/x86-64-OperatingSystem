@@ -257,7 +257,7 @@ PMEntry:
 
     jmp 0x08:LMEntry        ; Jump to long mode entry using segment selector 8.
 
-; Global Descriptor Table Structure for 64 bit mode, we define 3 entries with 8
+; Global Descriptor Table Structure for 64 bit mode, we define 2 entries with 8
 ; bytes for each.
 GDT64:
     dq 0            ; First entry is NULL.
