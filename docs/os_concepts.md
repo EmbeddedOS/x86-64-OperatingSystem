@@ -966,3 +966,103 @@
 
 - `rep movsq` repeat by quad-word.
 - After instruction, our kernel is copied into the address 0x200000.
+
+### 23. Reload GDT
+
+- The first thing we will do in the kernel is manage the system resources in one place such as GDT and IDT.
+
+- Notice that the address of GDT in GDT pointer is 8 bytes (quad-word). In 64-bit mode, we load the pointer with 2 byte limit and 8 byte base address. So we need to change the double word to quad-word.
+
+- And then, we are going to load the code segment descriptor into `cs` register. instead using jump instruction, we load descriptor using the return instruction.
+  - `retf` indicate that this is a far return. Normal return will not load the descriptor in `cs` register.
+  - When we execute the return instruction, we know that we will return from current procedure to the caller. The return address is pushed on the stack by the caller and go to the procedure.
+  - In the procedure, return instruction will pop the address in `rip` register which will branch to that location.
+
+- WHat we are actually doing here is fabricate the scenario where we are called by other caller and the far return instruction executes and we are back to the caller. So the return address need to be pushed on the stack on our own and we will jump to that address.
+
+- Generally we have two situations regarding to far return. One is return to the same privilege. Another is return to the different privilege level.
+
+- With same privilege, we can setup top stack look like:
+
+    |CS selector| 0x7C00
+    |Offset     | <--- RSP
+
+- The first 8 bytes are the code segment selector, here we choose 0x08. Then the offset is in the next 8 bytes. So we save the address of location we want to branch in here.
+
+        ```assembly
+            push 0x08           ; Push Code Selector.
+            push KernelEntry    ; Push Kernel entry address.
+            retf
+        ```
+
+- Also note that the default operand size of far return is 32 bits. Each data we pushed on the stack is 64 bits. So we need to add operand-size override prefix 48 ourselves to change the operand size to 64 bits. `db 0x48`
+
+### 24. Exceptions and interrupt handling
+
+- Interrupt handling is especially important part of the operating system. For example, if we don't implement interrupt handling for keyboard, then we cannot use keyboard for interact with computer.
+- Process scheduling which is an essential part of our OS relies on timer interrupt.
+
+- When we we talk about interrupts, we actually refer to hardware interrupts such as timer, keyboard interrupt, etc. Whereas exception occurs as a result of execution errors or internal processor errors. The process of handling interrupts and exceptions are very similar.
+
+- When an interrupt is fired, the correspond IDT entry is selected, the entry includes the information about which code segment the interrupt handler is at and its attributes, the offset and other info, etc.
+
+- The IDT entry structure:
+ 127    95        64  63         48         40   34 32 31        15         0
+|      |offset[63:32]|offset[31:16]|Attributes| |IST  |Selector |offset[15:0]|
+
+- The IDT entry takes up 16 bytes. The 64-bit offset of the interrupt handler is divided into three parts:
+  - lower 16 bits is stored in the first two bytes.
+  - second part is bits[48:63]
+  - finally part is bits[64:95]
+
+- Bit 16 to 31 holds the selector of the code segment descriptor which the interrupt handler is at.
+- `IST` stands for interrupt stack table. if we assign a value to this field, when the interrupt is fired the stack pointer this field references is loaded into `rsp` register. So we don't use the IST so we will set it to 0.
+
+                     7 6 5 4 3 2 1 0
+- 8 bits attribute: |P|DPL|0|1|1|1|0|
+  - The present bit should be 1.
+  - `01110` means this entry is interrupt descriptor table.
+  - The DPL specifies that which CPL can access this descriptor. For example, if we set DPL to 0, then we cannot access the descriptor when we run in ring 3 because the CPL is 3. This field is useful when the descriptor is for the software interrupt. We will set it to 0, because processor ignores the DPL of the descriptor of hardware interrupt and exceptions.
+
+- There are 256 different exceptions and interrupts vectors we can use:
+  - 0 - Divide by 9
+  - 1 - Debug
+  - 2 - NMI
+  - 3 - Breakpoint
+  - 4 - Overflow
+  - 5 - Bound
+  - 6 - Invalid opcode
+  - 7 - Device N/A
+  - 8 - Double faults
+  - 9 - Undefined
+  - 10 - Invalid TSS
+  - 11 - Segment fault
+  - 12 - SS fault
+  - 13 - GP fault
+  - 14 - Page fault
+  - 15 - Reserved
+  - 16 - x87 FPU
+  - 17 - Alignment
+  - 18 - Machine check
+  - 19 - SIMD
+  - 20-31 - Reserved
+  - 32-255 - User defined
+
+- The numbers here are called interrupt vectors which identifies the exceptions and interrupts.
+
+- NOTE that the vectors from 0 to 31 are predefine by the processor. We cannot redefine them. The vectors from 32 to 255 are user defined. The vectors for hardware interrupts and software interrupts are within this range.
+
+### 25. Saving registers
+
+- When we jump to handlers, we should save state of CPU. We will save by using push instruction to registers to stack.
+
+- When interrupts or exceptions occur, only some of registers are saved such as `rip` and `rsp` registers. In handler, we can use and modify registers to perform specific tasks, therefore when we return from the handler, the value of registers may have changed of CPU is not the same as it was before the interrupts occurs.
+- So in order to restore the state of CPU after the interrupt handling is done, we store all the general purpose registers on the stack.
+
+- In 64-bit mode, we have 16 general purpose registers. `rsp` is pushed on the stack when cpu calls the handler. So here we push 15 registers.
+
+        ```assembly
+
+        ```
+
+- After we handle the interrupt, we pop the origin value in those registers and return.
