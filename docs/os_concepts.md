@@ -1062,7 +1062,100 @@
 - In 64-bit mode, we have 16 general purpose registers. `rsp` is pushed on the stack when cpu calls the handler. So here we push 15 registers.
 
         ```assembly
-
+        push rax
+        push rbx
+        push rcx
+        push rdx
+        push rsi
+        push rdi
+        push rbp
+        push r8
+        push r9
+        push r10
+        push r11
+        push r12
+        push r13
+        push r14
+        push r15
         ```
 
-- After we handle the interrupt, we pop the origin value in those registers and return.
+- After we handle the interrupt, we pop the origin value in those registers and return. so when we return from the handler, the previous work CPU is doing is resumed just like the interrupt never happened.
+
+### 26. Setting up the interrupt controller
+
+- To deal with hardware interrupt, first thing we need to do is initialize the PIC (Programable Interrupt Controller - Manage the interrupt requests - IRQ) before we can handle the hardware interrupts.
+
+- We will set up timer interrupt. In order to do that, we also need to initialize the programmable interval timer which will fire the interrupt periodically.
+
+- There are two chips linked together.
+
+  Slave                       Master
+| IRQ 0 | \                 | IRQ 0 |
+| IRQ 1 |  \                | IRQ 1 |
+| IRQ 2 |   \       /------>| IRQ 2 |
+| IRQ 3 |    \______|       | IRQ 3 | =====> CPU
+| IRQ 4 |    /              | IRQ 4 |
+| IRQ 5 |   /               | IRQ 5 |
+| IRQ 6 |  /                | IRQ 6 |
+| IRQ 7 | /                 | IRQ 7 |
+
+- Each chip has 8 IRQ signals. The slave is linked to master via IRQ2. So actually we have a total of 15 interrupts.
+- The programmable interval timer, for example, uses IRQ0 of the master chip. The keyboard uses IRQ 1 of the master chip, etc. When we press a key, the keyboard will send a signal to the interrupt controller and the controller will then send signals to the processor according to the settings we write to the controller. The processor finds the handler for that interrupt by the vector number and call that handler.
+
+- There are three registers in each chip (`IRR`-`IMR`-`ISR`). These registers are used to service the interrupts. They are 8 bit registers with each bit representing the corresponding IRQ.
+- When a device, keyboard for example, sends a signal to the chip the corresponding bit in Interrupt Request Register `IRR` will be set. If the corresponding bit in the interrupt mask register `IMR` is 0, meaning that the IRQ is not masked, the PIC will send the interrupt to the processor and set the corresponding bit in the In-Service Register (ISR).
+
+- Generally, we could have multiple IRQs come at the same which means more than one bit in the `IRR` will be set. The PIC will choose which one should be processed first according to the priority. Normally, the IRQ0 has the highest priority and IRQ7 the lowest priority. And note that the slave is attached to the master via IRQ2. So all the IRQs on the slave have higher priority than IRQ3 of the master.
+
+- Let's get started.
+
+- There are three channels in the PIT (Programable interval timer) through channel 0 to channel 2. channel 1 and 2 may not exist and we don't use them in our system. So we only talk about channel 0. The PIT has four registers, one mode command register and three data registers. We set the command and data registers to make the PIT works as we expect, that is fire an interrupt periodically.
+  - The mode command register has four parts in it.
+    - Bit[0] mean the value PIT uses is in binary or BCD forms (set to 0 mean use binary form).
+    - Bit[1:3] is operating mode: 010 mean mode 2, rate generator used for reoccurring interrupt, for example.
+    - Bit[4:5] is Access mode: we want to write 16 bit value to PIT, we need to write two bytes in a row. And access mode specifies in which order the data will be written to the data register, such as low byte only, high byte only, etc. We will set the access mode to 11 means we want to write the low byte first and then high byte.
+    - Bit[6:7] selecting the channel.
+
+- Address of mode command register is 0x43. We use `out` instruction to write the value in `al` to the register.
+
+        ```assembly
+        InitializePIT:
+            mov al, 0b00110100  ; Initialize PIT mode command register, FORM=0, MODE=010
+                                ; , ACCESS=11, CHANNEL=00.
+            out 0x43, al        ; Address of mode command register is 0x43. We use out
+                                ; instruction to write the value in al to the register.
+        ```
+
+- Now we can write the settings to data register to make the PIT fire the interrupt as we expect. In fact the value we want to write to the PIT is an **interval value** which specifics when the interrupt is fired. The PIT works simply like this, we load a counter value and PIT will decrement this value at a rate of about 1.2Mega HZ which means it will decrement the value roughly 1.2 million times per second.
+  - In our system, we want the interrupt fired at 100 HZ which is 100 times per second.
+
+            ```assembly
+            InitializePIT:
+                mov al, 0b00110100  ; Initialize PIT mode command register, FORM=0, MODE=010
+                                    ; , ACCESS=11, CHANNEL=00.
+                out 0x43, al        ; Address of mode command register is 0x43. We use out
+                                    ; instruction to write the value in al to the register.
+                mov ax, 11931       ; The interval we want to set to fire the interrupt each
+                                    ; 100Hz (CPU count with 1.2Mega Hz): 1193182/100 = 11931
+                out 0x40, al        ; Address of data register channel 0 is 0x40. To set
+                mov al, ah          ; interval, we out lower byte first and out higher byte
+                out 0x40, al        ; after that.
+            ```
+
+- Now PIT is running now. Next thing we do is set up the interrupt controller. The PIC also has command register and data register. Each chip has its own register set.
+  - The address for the command register of the master chip is 0x20 and for slave chip is 0xA0.
+    - With 8 bits:
+      - Bit[0:3]: Indicate that we use the last initialization command word.
+      - Bit[4:7]: means that this is the initialization command followed by another three initialization command words we are about to write.
+
+            ```assembly
+            InitializePIC:
+                mov al, 0b00010001  ; Initialize PIC command register bits[7:4]=0001,
+                                    ; bits[3:0]=0001.
+                out 0x20, al        ; Write to the command register of master chip.
+                out 0xA0, al        ; Write to the command register of master chip.
+            ```
+
+- Next we write these three command words. The first one specifies the starting vector number of the first IRQ. Remember the processor has defined the first 32 vectors for its own use. So we define the vectors number from 32 to 255.
+  - instead of writing the data to command register, we write it to the data register, the address of which is 0x21 for the master and 0xA1 for the slave.
+  - Each chip has 8 IRQs and the first vector number of the master is 32, the second vector is 33 and so on.

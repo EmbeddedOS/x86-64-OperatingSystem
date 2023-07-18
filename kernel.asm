@@ -34,10 +34,28 @@ Start:
                         ; `caller` with caller address is KernelEntry.
 
 KernelEntry:
-    mov byte[0xB8000], 'K'
-    mov byte[0xB8001], 0xA
-    xor rbx, rbx
-    div rbx             ; Test divide by zero interrupt.
+    ; 3. Initialize PIT - Programable Interval Timer.
+InitializePIT:
+    mov al, 0b00110100  ; Initialize PIT mode command register, FORM=0, MODE=010
+                        ; , ACCESS=11, CHANNEL=00.
+    out 0x43, al        ; Address of mode command register is 0x43. We use out
+                        ; instruction to write the value in al to the register.
+    mov ax, 11931       ; The interval we want to set to fire the interrupt each
+                        ; 100Hz (CPU count with 1.2Mega Hz): 1193182/100 = 11931
+    out 0x40, al        ; Address of data register channel 0 is 0x40. To set
+    mov al, ah          ; interval, we out lower byte first and out higher byte
+    out 0x40, al        ; after that.
+    ; 4. Initialize PIC - Programable Interrupt Controller.
+InitializePIC:
+    mov al, 0b00010001  ; Initialize PIC command register bits[7:4]=0001,
+                        ; bits[3:0]=0001.
+    out 0x20, al        ; Write to the command register of master chip.
+    out 0xA0, al        ; Write to the command register of master chip.
+
+    mov al, 32          ; Write to the data register of master chip, set first
+    out 0x21, al        ; number in vectors we want to use, we will 8->40.
+    mov al, 40          ; Set end number in vectors.
+    out 0x21, al
 
 KernelEnd:
     hlt
