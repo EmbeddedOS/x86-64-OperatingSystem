@@ -1159,3 +1159,37 @@
 - Next we write these three command words. The first one specifies the starting vector number of the first IRQ. Remember the processor has defined the first 32 vectors for its own use. So we define the vectors number from 32 to 255.
   - instead of writing the data to command register, we write it to the data register, the address of which is 0x21 for the master and 0xA1 for the slave.
   - Each chip has 8 IRQs and the first vector number of the master is 32, the second vector is 33 and so on.
+
+- On a regular system, the slave is attached to the master via IRQ 2. If the bit 2 of the word is set, it means that the IRQ2 is used.
+
+        ```assembly
+            mov al, 0b00000100  ; Select bit 2 in master chip to connect with slave.
+            out 0x21, al
+            mov al, 0b00000010  ; Slave identification should be 2.
+            out 0xA1, al
+        ```
+
+- Last command we set in word is selecting mode:
+  - bit[0]: x86 system is used.
+  - bit[1]: is automatic end of interrupt. We don't use it.
+  - bit[2:3]: buffered mode. We don't use it.
+  - bit[4:7]: specify the nested mode. We don't use it.
+
+        ```assembly
+            mov al, 0b00000001  ; Selecting mode: bit[0]=1 means x86 system is used.
+            out 0x21, al
+            out 0xA1, al
+        ```
+
+- Now the interrupt controller is working. But we have one more thing to do. Since we have a total 15 IRQs in the PIC, we only setup one device. Therefore, we mask all the IRQs except the IRQ0 of the master which PIT uses.
+
+- Masking an interrupt is simple, all we need to do is set the corresponding bit of the IRQ and write the value to the data register.
+
+        ```assembly
+            mov al, 0b11111110  ; Masking all interrupts, except IRQ0 for the timer
+            out 0x21, al        ; interrupt we used.
+            mov al, 0b11111111
+            out 0xA1, al
+        ```
+
+- The next thing we are going to do is we are going to set the IDT entry for the timer. The vector number of the timer is set to 32 in the PIC, so the address of the entry is the base of the idt + 32*16.

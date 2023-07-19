@@ -14,14 +14,23 @@
 [ORG 0x200000]
 
 Start:
-    ; 1. Setup Divide By 0 handler for that exception.
+    ; 1. Setup handlers for IDT.
     mov rdi, IDT64
-    mov rax, DivideBy0Handler
+    mov rax, DivideBy0Handler   ; Setup Divide By 0 handler.
     mov [rdi], ax
     shr rax, 16
     mov [rdi + 6], ax
     shr rax, 16
     mov [rdi + 8], eax
+
+    mov rax, Timer0Handler      ; Setup  channel 0 timer handler.
+    add rdi, 32 * 16            ; Point to IRQ 32.
+    mov [rdi], ax
+    shr rax, 16
+    mov [rdi + 6], ax
+    shr rax, 16
+    mov [rdi + 8], eax
+
 
     ; 2. Load GDT and load code segment descriptor to cs register.
     lgdt [GDT64Pointer]
@@ -45,6 +54,7 @@ InitializePIT:
     out 0x40, al        ; Address of data register channel 0 is 0x40. To set
     mov al, ah          ; interval, we out lower byte first and out higher byte
     out 0x40, al        ; after that.
+
     ; 4. Initialize PIC - Programable Interrupt Controller.
 InitializePIC:
     mov al, 0b00010001  ; Initialize PIC command register bits[7:4]=0001,
@@ -53,9 +63,27 @@ InitializePIC:
     out 0xA0, al        ; Write to the command register of master chip.
 
     mov al, 32          ; Write to the data register of master chip, set first
-    out 0x21, al        ; number in vectors we want to use, we will 8->40.
-    mov al, 40          ; Set end number in vectors.
+    out 0x21, al        ; number in vectors we want to use, we will 32->39 for
+                        ; master chip.
+    mov al, 40          ; And 40->47 for slave chip.
+    out 0xA1, al
+
+    mov al, 0b00000100  ; Select bit 2 in master chip to connect with slave.
     out 0x21, al
+    mov al, 0b00000010  ; Slave identification should be 2.
+    out 0xA1, al
+
+    mov al, 0b00000001  ; Selecting mode: bit[0]=1 means x86 system is used.
+    out 0x21, al
+    out 0xA1, al
+
+    mov al, 0b11111110  ; Masking all interrupts, except IRQ0 for the timer
+    out 0x21, al        ; interrupt we used.
+    mov al, 0b11111111
+    out 0xA1, al
+
+    ; 5. Enable interrupts.
+    sti
 
 KernelEnd:
     hlt
@@ -81,6 +109,47 @@ DivideBy0Handler:
 
     mov byte[0xB8002], 'D'
     mov byte[0xB8003], 0xA
+    jmp KernelEnd
+
+    ; Restore state of CPU.
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+
+    iretq
+
+Timer0Handler:
+    ; Save state of CPU, we will save 15 general-purpose registers.
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov byte[0xB8004], 'T'
+    mov byte[0xB8005], 0xA
     jmp KernelEnd
 
     ; Restore state of CPU.
