@@ -191,8 +191,9 @@ Timer0Handler:
     inc byte[0xB8004]
     mov byte[0xB8005], 0xA
     mov al, 0b00100000  ; Set bit 5.
-    out 0x20, al        ; ACK the interrupt to run timer again, so the timer
-                        ; interrupt will fire periodically.
+    out 0x20, al        ; Acknowledge interrupt by sending EOI (0x20) to master
+                        ; PIC (I/O port 0x20). ACK the interrupt to run timer
+                        ; again, so the timer interrupt will fire periodically.
 
     ; Restore state of CPU.
     pop r15
@@ -238,7 +239,7 @@ SIRQ:
     in al, 0x20
     test al, (1<<7)
     jz ExitSpuriousInt  ; If it is spurious int, we exit and not re-enable this
-                        ; interrupt by don't set the end interrupt ack.
+                        ; interrupt by don't send special EOI command to PIC.
 
     mov al, 0x20
     out 0x20, al    ; Send ack make end of interrupt if it is regular interrupt.
