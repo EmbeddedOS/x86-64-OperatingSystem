@@ -1193,3 +1193,46 @@
         ```
 
 - The next thing we are going to do is we are going to set the IDT entry for the timer. The vector number of the timer is set to 32 in the PIC, so the address of the entry is the base of the idt + 32*16.
+
+### 27. Getting to ring 3
+
+- The CPL is stored in the lower 2 bits of `cs` and `ss` registers. We are running on ring 2, if we check the lower 2 bits of `cs` register we will set the value is 0 meaning that we are running in ring 0. What we need to to is prepare the code segment descriptor for ring 3 and load the descriptor to `cs` register.
+
+- Once the descriptor is successfully loaded into `cs` register, we will run in ring 3. In this process, the data segment descriptor for `ss` register is needed. This is the only case where we load the data segment descriptor ourselves.
+
+        ```assembly
+
+        ; Global Descriptor Table Structure for 64 bit mode.
+        GDT64:
+            dq 0            ; First entry is NULL.
+        CodeSegDes64:       ; Next entry is Code Segment Descriptor.
+            dq 0x0020980000000000
+            dq 0x0020F80000000000   ; DPL is ring 3, we make new code segment descriptor
+                                    ; that run with privilege level 3.
+            dq 0x0000F20000000000   ; And make data segment descriptor that run with
+                                    ; privilege level 3 also and writable.
+        ```
+
+- We use interrupt return to jump from ring 9 to ring 3. To return to the ring 3, we have to prepare 5 8-byte data on the stack. Stack frame that is saved automatically look like:
+
+    High address    |ss selector|
+                    |   RSP     |
+                    |   Rflags  |
+                    |cs selector|
+    Low address     |   RIP     |<---- RSP
+
+- The top of stack is RIP value which specifies where we will return. The next data is the code segment selector we will load into `cs` register after we return. `Rflags` contains the status of the CPU. When we return, the value will be loaded in `Rflags` register. The stack pointer is stored in the next location which will be loaded in register RSP. The last one is stack segment selector. Because stack is last in first out structure, we push the data in reverse order.
+
+- So we push the stack frame and using `iretq` instruction:
+
+        ```assembly
+        push 18|3       ; ss selector
+        push 0x7C00     ; RSP
+        push 0x2        ; Rflags
+        push 0x10|3     ; cs selector
+        push UserEntry  ; push RIP
+        ```
+
+- So when CPU catch the `iretq` instruction, it automatically pop stack frame to restore the old state, that state will want.
+
+- So we can define `UserEntry` label that run on ring 3.

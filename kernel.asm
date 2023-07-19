@@ -83,11 +83,33 @@ InitializePIC:
     out 0xA1, al
 
     ; 5. Enable interrupts.
-    sti
+    ;sti
+
+    ;6. Test switch to ring 3 using iretq, we push fake stack frame.
+    push 0x18|3       ; ss selector.
+    push 0x7C00     ; RSP.
+    push 0x2        ; Rflags.
+    push 0x10|3     ; cs selector.
+    push UserEntry  ; RIP.
+
+    iretq
 
 KernelEnd:
     hlt
     jmp KernelEnd
+
+UserEntry:
+    ; 7. Check current ring.
+    mov ax, cs
+    and al, 0b11
+    cmp al, 0b11
+    jne UserEnd
+
+    mov byte[0xB8012], '3'
+    mov byte[0xB8013], 0xA
+
+UserEnd:
+    jmp UserEnd
 
 DivideBy0Handler:
     ; Save state of CPU, we will save 15 general-purpose registers.
@@ -176,6 +198,10 @@ GDT64:
     dq 0            ; First entry is NULL.
 CodeSegDes64:       ; Next entry is Code Segment Descriptor.
     dq 0x0020980000000000
+    dq 0x0020F80000000000   ; DPL is ring 3, we make new code segment descriptor
+                            ; that run with privilege level 3.
+    dq 0x0000F20000000000   ; And make data segment descriptor that run with
+                            ; privilege level 3 also and writable.
 
 GDT64Len: equ $-GDT64
 
