@@ -1236,3 +1236,122 @@
 - So when CPU catch the `iretq` instruction, it automatically pop stack frame to restore the old state, that state will want.
 
 - So we can define `UserEntry` label that run on ring 3.
+
+### 28. Task state segment, interrupt handling in ring 3
+
+- When we are running in ring 3, an interrupt is fired the control will be transferred to the interrupt handler which runs in ring 0 in our system. The DPL of the segment descriptor which the interrupt handler is at is set to 0. In this process, the `ss` segment register is also loaded with NULL descriptor by the processor. And the `rsp` register is also loaded with a new value. The value of `rsp` is stored in the **Task State Segment**.
+
+- Therefore, what we need to do is set up the TSS and specify the new value of `rsp` in the TSS.
+- Structure of TSS:
+                            Offset
+    |IOPB address| Reserved | 0x64
+    |       Reserved        | 0x5C
+    |          IST7         |
+    |          IST6         |
+    |          IST5         |
+    |          IST4         |
+    |          IST3         |
+    |          IST2         |
+    |          IST1         | 0x24
+    |       Reserved        |
+    |          RSP2         | 0x14
+    |          RSP1         | 0xC
+    |          RSP0         | 4
+    |       Reserved        | 0
+
+- The field of `RSP0` is what we want. When the control transferred from low privilege level to ring 0, the value of `RSP0` is loaded into `RSP` register. Since we don't use ring 1 and ring 2, we are not gonna set those fields. The interrupt stack table - IST, if the IST field in the interrupt descriptor is non-zero, then it is the index of IST here. For example, if it is 1, then the value of IST1 is loaded inRSP instead RSP0 value. SInce we have set the interrupt descriptors with IST field being 0, we are not gonna use the IST fields here.
+
+- The last item is the address of io permission bitmap `IOPB address` which is used for protection for io port addresses (we do not use in our system).
+
+- The TSS descriptor is stored in the GDT. Unlike the code segment and data segment descriptors where the base and limit are ignored, **the base and limit attributes in TSS descriptor are used**. So when we set up the descriptor, the base address and limit need to be set correctly.
+ 127          104        95                                                 64
+|          |00000|      |                       Base [63:32]                  |
+
+ 63        56         52              48         40          16              0
+|Base [31:21]|Attributes| Limit [19:16] |Attributes|Base [23:0]| Limit [15:0] |
+
+- In the attributes[40:44] we need to set 01001 means that this is the 64-bit TSS descriptor.
+
+- Loading the TSS selector is different from loading the code segment selector. Here we load the selector using instruction load task register. After the selector is loaded, the processor then uses the selector to locate the TSS descriptor in the GDT.
+
+        ```assembly
+        ; Global Descriptor Table Structure for 64 bit mode.
+        GDT64:
+            dq 0            ; First entry is NULL.
+        CodeSegDes64:       ; Next entry is Code Segment Descriptor.
+            dq 0x0020980000000000
+        CodeSegDes64Ring3:
+            dq 0x0020F80000000000   ; DPL is ring 3, we make new code segment descriptor
+                                    ; that run with privilege level 3.
+        DataSegDes64Ring3:
+            dq 0x0000F20000000000   ; And make data segment descriptor that run with
+                                    ; privilege level 3 also and writable.
+        TaskStateSegDes64:          ; Task state segment descriptor.
+            dw TssLen - 1           ; First two bytes are the lower 16 bits of TSS limit
+            dw 0                    ; Lower 24 bits of base address is set to 0.
+            db 0
+            db 0b10001001           ; Attribute byte: P=1, DPL=00,TYPE=010001
+            db 0
+            db 0
+            dq 0
+        ```
+
+        ```assembly
+        ; Task state segment structure - 128 bytes.
+        TSS:
+            dd 0            ; First four bytes is reserved.
+            dq 0x150000     ; Set RSP0 to new address.
+            times 88 db 0   ; Clear next 88 bytes to 0.
+            dd TssLen       ; IO permission bitmap, assign size of TSS means we don't
+                            ; use the IO permission bitmap.
+        TssLen: equ $-TSS
+        ```
+
+- Load the TSS:
+
+        ```assembly
+            ; 3. Set Task state segment.
+        SetTSS:
+            mov rax, TSS                    ; Point to TSS structure.
+            mov [TaskStateSegDes64 + 2], ax
+            shr rax, 16
+            mov [TaskStateSegDes64 + 4], al
+            shr rax, 8
+            mov [TaskStateSegDes64 + 7], al
+            shr rax, 8
+            mov [TaskStateSegDes64 + 8], eax
+            mov ax, 0x20                    ; Tss des is 5th entry, so we move 0x20.
+            ltr ax                          ; Load TSS.
+        ```
+
+- So after load the TSS, we can test emit interrupt that run on ring 3. to do that, we will enable interrupt in `Rflags` that will be restored when we use `iretq`.
+
+        ```assembly
+            ;6. Test switch to ring 3 using iretq, we push fake stack frame.
+            push 0x18|3     ; ss selector.
+            push 0x7C00     ; RSP.
+            push 0x202      ; Rflags, we push 0x202 to enable interrupt via state reg
+                            ; when we get from ring 0 to ring 3.
+            push 0x10|3     ; cs selector.
+            push UserEntry  ; RIP.
+        ```
+
+- In the timer handler, we can increase some variable to check, timer is active every 100ms look like:
+
+        ```assembly
+            inc byte[0xB8004]
+            mov byte[0xB8005], 0xA
+        ```
+
+- Also, when handling the hardware interrupt, we need to acknowledge the interrupt before we return from the handler. Otherwise we will not receive the interrupt again.
+  - To acknowledge the interrupt, we write the value to the command register of the PIC. The bit[5] of the value is non-specific end of interrupt.
+
+        ```assembly
+            inc byte[0xB8004]
+            mov byte[0xB8005], 0xA
+            mov al, 0b00100000  ; Set bit 5.
+            out 0x20, al        ; ACK the interrupt to run timer again, so the timer
+                                ; interrupt will fire periodically.
+        ```
+
+- When the handler returns now, the timer interrupt will fire periodically and see the character is changing.
