@@ -1355,3 +1355,53 @@
         ```
 
 - When the handler returns now, the timer interrupt will fire periodically and see the character is changing.
+
+### 30. Spurious interrupt handling
+
+- Spurious interrupt is not a real interrupt. The IRQ used for spurious interrupt is the lowest priority IRQ number that is IRQ7 for the master chip. The spurious interrupt is caused by several reasons. In order to handle the spurious interrupt, we need to implement the handler for IRQ7. Because we don't use the slave chip in our system, we only deal with the spurious interrupt in the master chip.
+
+- We can define this handler, and perform check if it is spurious or not. To perform check, we read the ISR register of the PIC and check the bit 7 of the value. If it is set, then this is a regular interrupt and we handle it as we did with other interrupts. If is 0, this is spurious interrupt and we simply return without sending the end of interrupt. We write a value to command register:
+
+    7 6 5 4 3 2 1 0 bit
+    0 0 0 0 1 0 1 1
+- The bit[0] is 1 specify reading IRR or ISR register. bit[1:0] = 11 means reading ISR register.
+- Bit[3] is 1 meaning that this is the command which reads the ISR register.
+
+        ```assembly
+        ; save state.
+
+        mov al, 0b00001011
+        out 0x20, al
+        in al, 0x20
+        test al,(1<<7)
+        jz End
+        ; do some thing.
+
+        mov al, 0x20
+        out 0x20, al ; Send ack if it is regular interrupt.
+
+        End: ; If not, return, and not enable this interrupt forever.
+        ; restore state.
+        ```
+
+## 6. Working with C
+
+### 31. Kernel Main
+
+- The compiler we use is GCC and the executable file we will generate is elf file. Since the kernel in assembly code is also in the kernel, we will see how to combine the assembly and C files together.
+- The `nasm` command will output `elf64` file for kernel.asm:
+
+        ```bash
+        nasm -f elf64 -o kernel.o kernel.asm
+        ```
+
+- Then we will link the object file with other files written in C. In the kernel assembly file, we define two sections `.text` and `.data`.
+- The data section is used for the data defined globally such as IDT, TSS, etc.
+
+- Build C file:
+  - `-mcmodel=large`: Use large code model. So that code generated is for the large mode.
+  - `--ffreestanding`: We don't need C standard library and other runtime features. There are still some of headers available to use usch as `stdint.h`.
+  - `-fno-stack-protector`: No stack protector.
+  - `-mno-red-zone`: red zone is an area of 128 bytes below the stack pointer which can be used by leaf functions without changing rsp register. The red zone is specified in system V AMD64 calling convention which we use in the code. We need to disable red zone in the kernel, otherwise the kernel stack could be corrupted if the interrupt occurs.
+
+- We don't use the `ORG` directive to tell the assembler we want our kernel file running in the address 0x200000. But in the loader file, we still jump to the address 0x200000 after we load the kernel. So we use the linker script to do it.  We have several sections define in the files.
