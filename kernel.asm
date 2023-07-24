@@ -120,9 +120,12 @@ InitializePIC:
 
     ; 6. Jump to kernel main.
 KernelEntry:
+    xor ax, ax          ; Initialize ss register.
+    mov ss, ax
     mov rsp, 0x200000   ; Adjust kernel stack pointer that is new stack pointer
                         ; we will use in the C code.
     call KMain
+    sti                 ; Enable interrupt.
 KernelEnd:
     hlt
     jmp KernelEnd

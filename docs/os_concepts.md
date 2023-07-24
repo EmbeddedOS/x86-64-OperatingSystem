@@ -1405,3 +1405,10 @@
   - `-mno-red-zone`: red zone is an area of 128 bytes below the stack pointer which can be used by leaf functions without changing rsp register. The red zone is specified in system V AMD64 calling convention which we use in the code. We need to disable red zone in the kernel, otherwise the kernel stack could be corrupted if the interrupt occurs.
 
 - We don't use the `ORG` directive to tell the assembler we want our kernel file running in the address 0x200000. But in the loader file, we still jump to the address 0x200000 after we load the kernel. So we use the linker script to do it.  We have several sections define in the files.
+
+### 32. Process the interrupts
+
+- We are using system V AMD64 calling convention where the first six arguments are stored in: `RDI` - `RSI` - `RDX` - `RCX` - `R8` - `R9` and others are on the stack in reserved order.
+- Return value is stored in `RAX` register.
+- Caller Saved Registers: `RAX`, `RCX`, `RDX`, `RSI`, `RDI`, `R8`, `R9`, `R10`, `R11`. Which means the caller has to save the value of these registers if it calls other function which could alter there registers. Normally the caller will save the value on the stack before it calls other functions and restore the value of the registers after the functions return.
+- Callee Saved Registers: `RBX`, `RBP`, `R12`, `R13`, `R14`, `R15`. Which means the value of these registers are preserved when we call a function and return from it.
