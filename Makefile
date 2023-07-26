@@ -6,8 +6,9 @@ all:
 	nasm -f elf64 -o trapasm.o trap.asm
 	gcc $(CFLAGS) main.c -o main.o
 	gcc $(CFLAGS) trap.c -o trap.o
+	gcc $(CFLAGS) printk.c -o printk.o
 
-	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o libc/libc.a
+	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o printk.o libc/libc.a
 	objcopy -O binary kernel kernel.bin
 	dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=boot.img bs=512 count=5 seek=1 conv=notrunc
