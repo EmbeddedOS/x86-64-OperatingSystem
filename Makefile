@@ -7,8 +7,9 @@ all:
 	gcc $(CFLAGS) main.c -o main.o
 	gcc $(CFLAGS) trap.c -o trap.o
 	gcc $(CFLAGS) printk.c -o printk.o
+	gcc $(CFLAGS) assert.c -o assert.o
 
-	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o printk.o libc/libc.a
+	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o printk.o assert.o libc/libc.a
 	objcopy -O binary kernel kernel.bin
 	dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=boot.img bs=512 count=5 seek=1 conv=notrunc
