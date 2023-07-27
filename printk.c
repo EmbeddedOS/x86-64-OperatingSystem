@@ -137,6 +137,70 @@ int printk(const char *format, ...)
     return buffer_size;
 }
 
+int sprintk(char *str, const char *format, ...)
+{
+    char buffer[PRINT_MAX_BUFFER_SIZE] = {0};
+    int buffer_size = 0;
+    int64_t integer = 0;
+    char *string = NULL;
+    va_list args;
+
+    va_start(args, format);
+
+    for (int i = 0; format[i] != '\0'; i++)
+    {
+        if (format[i] != '%')
+        {  
+            /* Regular character will be copied to the buffer. */
+            buffer[buffer_size++] = format[i];
+        } else {
+            switch (format[++i]) {
+                case 'x': {
+                    integer = va_arg(args, int64_t);
+                    buffer_size += WriteHexToBuffer(buffer,
+                                                        buffer_size,
+                                                        (uint64_t)integer);
+                }
+                break;
+                case 'u': {
+                    integer = va_arg(args, int64_t);
+                    buffer_size += WriteUDecimalToBuffer(buffer,
+                                                            buffer_size,
+                                                            (uint64_t)integer);
+                }
+                break;
+                case 'd': {
+                    integer = va_arg(args, int64_t);
+                    buffer_size += WriteDecimalToBuffer(buffer,
+                                                            buffer_size,
+                                                            integer);
+                }
+                break;
+                case 's': {
+                    string = va_arg(args, char *);
+                    buffer_size += WriteStringToBuffer(buffer,
+                                                            buffer_size,
+                                                            string);
+                }
+                break;
+                default:
+                    /* If specifies is not supported, we copy the character `%`
+                     * to the buffer, decrement index and continue the loop. 
+                     */
+                    buffer[buffer_size++] = '%';
+                    i--;
+            }
+        }
+    }
+
+    memcpy(str, buffer, buffer_size);
+    str[buffer_size + 1] = '\0';
+    va_end(args);
+
+    return buffer_size;
+}
+
+
 /* Private function ----------------------------------------------------------*/
 static int WriteStringToBuffer(char *buffer, int pos, const char *str) 
 {
