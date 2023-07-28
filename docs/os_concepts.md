@@ -1504,3 +1504,5 @@
                                             ; location, that means the machine actually
                                             ; disable A20 line, so we will exit.
         ```
+
+- When we retrieve memory info using BIOS service, the data is actually arranged in the structures.

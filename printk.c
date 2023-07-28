@@ -158,8 +158,8 @@ int sprintk(char *str, const char *format, ...)
                 case 'x': {
                     integer = va_arg(args, int64_t);
                     buffer_size += WriteHexToBuffer(buffer,
-                                                        buffer_size,
-                                                        (uint64_t)integer);
+                                                    buffer_size,
+                                                    (uint64_t)integer);
                 }
                 break;
                 case 'u': {
@@ -227,13 +227,12 @@ static int WriteHexToBuffer(char *buffer, int pos, uint64_t integer)
 
     buffer[pos++] = '0';
     buffer[pos++] = 'x';
-    size += 2;
 
     for (int i = size - 1; i >= 0; i--) {
         buffer[pos++] = digits_buffer[i];
     }
 
-    return size;
+    return size + 2;
 }
 
 static int WriteUDecimalToBuffer(char *buffer, int pos, uint64_t integer)
