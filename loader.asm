@@ -103,23 +103,28 @@ GetMemoryInfoStart:
     mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
     mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
     mov ecx, 0x14           ; Size of buffer for result, in bytes.
-    mov edi, 0x9000         ; ES:DI -> buffer result.
+    mov dword[0x9000], 0    ; We will save count of structures at address 0x9000
+                            ; , and store structures start at 0x9008.
+    mov edi, 0x9008         ; ES:DI -> buffer result.
     xor ebx, ebx            ; 0x00 to start at beginning of map.
     int 0x15                ; Call the BIOS service.
     jc NotSupport           ; Carry flag will be set if error.
 
 GetMemoryInfo:
+    inc dword[0x9000]       ; Increase count of memory blocks, that we actually
+                            ; get the information.
+    test ebx, ebx           ; If ebx is zero, that means we don't reach the
+    jz GetMemoryDone        ; end of list, so we need to get next block.
+
     add edi, 0x14           ; Point DI to next 20 bytes to receive next memory
                             ; block.
     mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
     mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
     mov ecx, 0x14           ; Size of buffer for result, in bytes.
     int 0x15                ; Call the BIOS service.
-    jc GetMemoryDone        ; Carry flag will be set if error. But if it is set,
+    jnc GetMemoryInfo       ; Carry flag will be set if error. But if it is set,
                             ; this means, the end of memory blocks has already
                             ; been reached.
-    test ebx, ebx           ; If ebx is none zero, that means we don't reach the
-    jnz GetMemoryInfo       ; end of list, so we need to get next block.
 
 GetMemoryDone:
     ; 6. Check if A20 line is enabled on machine or not.

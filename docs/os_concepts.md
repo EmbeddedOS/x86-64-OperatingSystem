@@ -1412,3 +1412,95 @@
 - Return value is stored in `RAX` register.
 - Caller Saved Registers: `RAX`, `RCX`, `RDX`, `RSI`, `RDI`, `R8`, `R9`, `R10`, `R11`. Which means the caller has to save the value of these registers if it calls other function which could alter there registers. Normally the caller will save the value on the stack before it calls other functions and restore the value of the registers after the functions return.
 - Callee Saved Registers: `RBX`, `RBP`, `R12`, `R13`, `R14`, `R15`. Which means the value of these registers are preserved when we call a function and return from it.
+
+## 7. Memory management
+
+### 36. Retrieve memory map
+
+- In this section, we will build memory map manager and set up paging. After load the kernel to address 0x200000, the memory map look like:
+
+              Memory
+      |      Free         |
+      |-------------------|
+      |      Kernel       |
+      |-------------------| 0x200000
+      |      Free         |
+      |-------------------| 0x100000
+      |      Reserved     |
+      |-------------------| 0x80000
+      |      Free         |
+      |-------------------|
+      |      Loader       | 0x7e00
+      |-------------------|
+      |     MBR code      | 0x7c00
+      |-------------------|
+      |      Free         |
+      |-------------------|
+      | BIOS data vectors |
+      |-------------------| 0
+
+- Currently we have the free memory region above 1MB (0x100000) up to our kernel code (That resident start at 0x200000).
+- But not all the memory map above 1MB is available to use. we need to find out memory map.
+
+- We have retrieved the information about memory map and stored it in the address 0x9000.
+
+        ```assembly
+        GetMemoryInfoStart:
+            mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov ecx, 0x14           ; Size of buffer for result, in bytes.
+            mov edi, 0x9000         ; ES:DI -> buffer result.
+            xor ebx, ebx            ; 0x00 to start at beginning of map.
+            int 0x15                ; Call the BIOS service.
+            jc NotSupport           ; Carry flag will be set if error.
+         GetMemoryInfo:
+            add edi, 0x14           ; Point DI to next 20 bytes to receive next memory
+                                    ; block.
+            mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov ecx, 0x14           ; Size of buffer for result, in bytes.
+            int 0x15                ; Call the BIOS service.
+            jc GetMemoryDone        ; Carry flag will be set if error. But if it is set,
+                                    ; this means, the end of memory blocks has already
+                                    ; been reached.
+            test ebx, ebx           ; If ebx is none zero, that means we don't reach the
+            jnz GetMemoryInfo       ; end of list, so we need to get next block.
+        ```
+
+- We actually implementing the `printk()` so we can use it to print all memory map information to the screen.
+
+- We need edit a little bit about getting memory map information, we stores the count of structures in address 0x9000, so we initialize 0x9000 with value 0 and this value is 4 byte data, And the structure are stored from address 0x9008.
+
+        ```assembly
+        GetMemoryInfo:
+            inc dword[0x9000]       ; Increase count of memory blocks, that we actually
+                                    ; get the information.
+            test ebx, ebx           ; If ebx is zero, that means we don't reach the
+            jz GetMemoryDone        ; end of list, so we need to get next block.
+
+            add edi, 0x14           ; Point DI to next 20 bytes to receive next memory
+                                    ; block.
+            mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov edx, 0x534D4150     ; Configure param for GET SYSTEM MEMORY MAP service.
+            mov ecx, 0x14           ; Size of buffer for result, in bytes.
+            int 0x15                ; Call the BIOS service.
+            jnc GetMemoryInfo       ; Carry flag will be set if error. But if it is set,
+                                    ; this means, the end of memory blocks has already
+                                    ; been reached.
+
+        GetMemoryDone:
+            ; 6. Check if A20 line is enabled on machine or not.
+        TestA20lLine:
+            mov ax, 0xFFFF
+            mov es, ax                      ; Set extra segment to 0xFFFF
+            mov word[ds:0x7C00], 0xA200     ; Set 0xA200 to address 0x7C00.
+            cmp word[es:0x7C10], 0xA200     ; Compare value at address 0x107C00 with
+                                            ; 0xA200.
+            jne SetA20LineDone              ; If not equal, means previous instruction
+                                            ; actually reference to address 0x107C00.
+            mov word[0x7C00], 0xB200        ; If equal, will make a test with different
+            cmp word[es:0x7C10], 0xB200     ; value to confirm.
+            je NotSupport                   ; If it actually access same the memory
+                                            ; location, that means the machine actually
+                                            ; disable A20 line, so we will exit.
+        ```
