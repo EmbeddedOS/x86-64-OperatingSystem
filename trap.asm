@@ -27,6 +27,7 @@ global Vector39
 global EOI          ; The end of interrupt.
 global ReadISR
 global LoadIDT
+global LoadCR3
 
 Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push rax        ; purpose registers. Print character to debug. And call the
@@ -182,4 +183,9 @@ ReadISR:
 
 LoadIDT:
     lidt [rdi]
+    ret
+
+LoadCR3:
+    mov rax, rdi
+    mov cr3, rax
     ret
