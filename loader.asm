@@ -226,16 +226,39 @@ PMEntry:
     ; paging structure which is used to translate the virtual address to 
     ; physical. The addresses (0x80000 to 0x90000) may used for BIOS data. We 
     ; can use memory area from 0x70000 to 0x80000.
-    ; TODO: add detailed document about this block.
     cld
-    mov edi, 0x80000
-    xor eax, eax
+    mov edi, 0x70000        ; First off, we zero the 10000 bytes of memory
+    xor eax, eax            ; region starting from 0x70000.
     mov ecx, 0x10000/4
     rep stosd
 
-    mov dword[0x80000], 0x81007
-    mov dword[0x81000], 0b10000111
-
+    mov dword[0x70000], 0x71003     ; Each entry in the Page Map Level 4 table
+                                    ; represent 512GB and we only implement the
+                                    ; low 1GB. So we setup the first entry of
+                                    ; of the table. Each table takes up 4KB
+                                    ; space, since the table include 512 entries
+                                    ; with each entry being 8 bytes. The next
+                                    ; table address is set to 0x1000 and the
+                                    ; lower 3 bits are the attribute we need to
+                                    ; set.
+    mov dword[0x71000], 0b10000011  ; In the Page directory pointer table, we
+                                    ; also setup the first entry. Because each
+                                    ; entry here points to 1GB physical page,
+                                    ; and this is all we need. The base address
+                                    ; of the physical page is set to 0 and the
+                                    ; attribute is set to 0b10000011.
+    ; Remap kernel from 0x200000 in physical to 0xFFFF800000000000 in virtual.
+    mov eax, (0xFFFF800000000000>>39)   ; We retrive the 9 bit Page Map Level 4
+                                        ; located at the bit 39 of the address.
+    and eax, 0x1FF                      ; And the we clear other bits. So we get
+                                        ; 9 bit index value.
+                                        ; Next we use the index to locate the
+                                        ; corresponding entry in the table. Each
+                                        ;entry takes up 8 bytes.
+    mov dword[0x70000 + eax*8], 0x72003 ; The value we assign is 0x72003 which
+                                        ; means the next table is at 0x72000 and
+                                        ; the attributes are same as before.
+    mov dword[0x72000], 0b10000011
     ; 12. Load GDT for 64-bit mode.
     lgdt [GDT64Pointer]
 
@@ -244,10 +267,11 @@ PMEntry:
     or eax, (1<<5)          ; register 4.
     mov cr4, eax
 
-    mov eax, 0x80000        ; Setup the page structure we just setup 0x80000 to
-    mov cr3, eax            ; cr3 Control Register 3. By the way, all the
-                            ; addresses we have seen so far are all physical
-                            ; addresses because we don't enable paging.
+    mov eax, 0x70000        ; Setup the page structure we just setup 0x70000 to
+    mov cr3, eax            ; cr3 Control Register 3. So the Address of Page Map
+                            ; Level 4 table is 0x70000. Each entry in the Page
+                            ; Map Level 4 table represent 512GB and we only
+                            ; implement the low 1GB.
 
     mov ecx, 0xC0000080     ; Enable Long mode, using Extended Feature Enable
     rdmsr                   ; Register, it is a special register. We need to get
@@ -288,4 +312,10 @@ LMEntry:
     mov rcx, 51200/8    ; RCX acts as a counter, we will copy 100 sectors: 512
                         ; * 100 = 51200 bytes.
     rep movsq           ; Repeat quad-word one time.
-    jmp 0x200000        ; Jump to kernel entry.
+
+    ; Since the kernel is relocated to the new virtual address which is far away
+    ; from the loader, we need to save it to the 64-bit register and jump to
+    ; kernel.
+    mov rax, 0xFFFF800000200000     ; Move virtual address to `rax`.
+    jmp rax                         ; Jump to kernel entry.
+

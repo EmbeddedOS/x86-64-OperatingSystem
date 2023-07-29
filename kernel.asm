@@ -42,11 +42,11 @@ GDT64Pointer: dw GDT64Len - 1   ; First two bytes is GDT length.
 
 ; Task state segment structure - 128 bytes.
 TSS:
-    dd 0            ; First four bytes is reserved.
-    dq 0x190000     ; Set RSP0 to new address.
-    times 88 db 0   ; Clear next 88 bytes to 0.
-    dd TssLen       ; IO permission bitmap, assign size of TSS means we don't
-                    ; use the IO permission bitmap.
+    dd 0                    ; First four bytes is reserved.
+    dq 0xFFFF800000190000   ; Set RSP0 to new address.
+    times 88 db 0           ; Clear next 88 bytes to 0.
+    dd TssLen               ; IO permission bitmap, assign size of TSS means we
+                            ; don't use the IO permission bitmap.
 TssLen: equ $-TSS
 
 section .text
@@ -57,18 +57,20 @@ global Start        ; Declare the start of the kernel globally so that linker
 
 Start:
     ; 1. Load GDT and IDT.
-    lgdt [GDT64Pointer]
+    mov rax, GDT64Pointer   ; We need to move to rax first, because the kernel
+    lgdt [rax]              ; now is higher memory.
 
     ; 2. Set Task state segment.
 SetTSS:
     mov rax, TSS                    ; Point to TSS structure.
-    mov [TaskStateSegDes64 + 2], ax
+    mov rdi, TaskStateSegDes64
+    mov [rdi + 2], ax
     shr rax, 16
-    mov [TaskStateSegDes64 + 4], al
+    mov [rdi + 4], al
     shr rax, 8
-    mov [TaskStateSegDes64 + 7], al
+    mov [rdi + 7], al
     shr rax, 8
-    mov [TaskStateSegDes64 + 8], eax
+    mov [rdi + 8], eax
     mov ax, 0x20                    ; Tss des is 5th entry, so we move 0x20.
     ltr ax                          ; Load TSS.
 
@@ -113,15 +115,16 @@ InitializePIC:
 
     ; 5. Load code segment descriptor to cs register.
     push 0x08           ; Push Code Selector.
-    push KernelEntry    ; Push Kernel entry address.
+    mov rax, KernelEntry
+    push rax            ; Push Kernel entry address.
     db 0x48             ; Set operand-size to 64 bit.
     retf                ; we load code segment descriptor by far return to
                         ; `caller` with caller address is KernelEntry.
 
     ; 6. Jump to kernel main.
 KernelEntry:
-    mov rsp, 0x200000   ; Adjust kernel stack pointer that is new stack pointer
-                        ; we will use in the C code.
+    mov rsp, 0xFFFF800000200000   ; Adjust kernel stack pointer that is new
+                                  ; stack pointer we will use in the C code.
     call KMain
 KernelEnd:
     hlt

@@ -1536,17 +1536,17 @@
               Memory
       |                   |
       |                   |
-      |    Kernel space   | 0xFFFF8000000000000
+      |    Kernel space   | 0xFFFF800000000000
       |-------------------|
       |  Non-canonical    | 0xFFFF7FFFFFFFFFFF
       |   Addresses       |
-      |                   | 0x8000000000000
+      |                   | 0x800000000000
       |-------------------|
       |                   | 0x7FFFFFFFFFFF
       |     User space    |
       |-------------------| 0
 
-- The chunked memory: 0x8000000000000 -> 0xFFFF7FFFFFFFFFFF is non canonical address. The user programs will run in the lower part of the memory location. The non-canonical address area separates the kernel and user space.
+- The chunked memory: 0x800000000000 -> 0xFFFF7FFFFFFFFFFF is non canonical address. The user programs will run in the lower part of the memory location. The non-canonical address area separates the kernel and user space.
 
 - HOW TO SETUP MEMORY LIKE THIS?
   - This requires us to set up paging. When we enter the 64-bit mode, paging mechanism is enabled. But the way we setup paging is making the virtual address is equal to physical address. Therefore we need to reconfigure it.
