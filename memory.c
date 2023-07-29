@@ -81,7 +81,7 @@ static PageDir FindPageDirPointerTableEntry(uint64_t map,
                                             uint32_t attr);
 
 /* Public function -----------------------------------------------------------*/
-void retrieve_memory_info(void)
+void RetrieveMemoryInfo(void)
 {
     int32_t count = *(int32_t *)MEMORY_REGION_COUNT_BASE_ADDR;
     uint64_t total_mem = 0;
@@ -137,6 +137,18 @@ void retrieve_memory_info(void)
     printk("Virtual Free Memory: %x->%x\n",
             start_page,
             s_free_memory_end_address);
+}
+
+void InitMemory(void)
+{
+    SetupKVM();
+    SwitchVM(g_kernel_page_PML4_table_addr);
+    printk("Memory Manage is working now.\n");
+}
+
+void SwitchVM(uint64_t map)
+{
+    LoadCR3(VIR_TO_PHY(map));
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -215,7 +227,7 @@ FindPML4TableEntry(uint64_t map,
 static void SetupKVM(void)
 {
     g_kernel_page_PML4_table_addr = (uint64_t)kalloc();
-    ASSERT(g_kernel_page_PML4_table_addr != NULL);
+    ASSERT(g_kernel_page_PML4_table_addr != (uint64_t)NULL);
 
     memset((void *)g_kernel_page_PML4_table_addr, 0, PAGE_SIZE);
 

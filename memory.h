@@ -87,9 +87,10 @@ typedef PageDir* PageDirPointerTable;
 
 
 /* Public function prototype -------------------------------------------------*/
-void retrieve_memory_info(void);
-void init_memory(void);
-
+void LoadCR3(uint64_t map);
+void RetrieveMemoryInfo(void);
+void InitMemory(void);
+void SwitchVM(uint64_t map);
 
 void kfree(uint64_t addr);
 void* kalloc(void);
