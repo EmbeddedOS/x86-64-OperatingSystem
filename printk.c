@@ -2,6 +2,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include "printk.h"
+#include "memory.h"
+
 /* Private define ------------------------------------------------------------*/
 #define LINE_SIZE                   (80 * 2)
 #define VGA_BASE                    0xB8000
@@ -17,7 +19,7 @@ struct ScreenBuffer {
 
 /* Private variable ----------------------------------------------------------*/
 static struct ScreenBuffer screen_buffer = {
-    .buffer = (char *)VGA_BASE,
+    .buffer = (char *)PHY_TO_VIR(VGA_BASE),
     .column = 0,
     .row = 0
 };
