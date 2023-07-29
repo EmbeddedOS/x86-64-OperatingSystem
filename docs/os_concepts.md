@@ -1680,3 +1680,8 @@
 - And also, we only use the first 1GB of RAM and simply ignore other free memory. If you want to use more RAM, don't forget to set the corresponding items in the page translation tables.
 
 - In our system, the memory we care about is from the end of our kernel to the end of the 1st gigabytes of memory. So how do we know where the end of our kernel is? we simply add a symbol at the end of sections at linker script file.
+
+### 39. Memory pages
+
+- We will use 2MB memory page instead of 1GB page which is used by the kernel so far.
+- To do the kernel remap, we need to setup the corresponding table entries.

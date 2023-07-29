@@ -1,3 +1,6 @@
+#include <stddef.h>
+#include <stdbool.h>
+#include <string.h>
 #include "memory.h"
 #include "printk.h"
 #include "assert.h"
@@ -19,9 +22,49 @@ static FreeMemoryRegion s_free_memory_regions[MEMORY_MAX_FREE_REGIONS];
 extern char l_kernel_end;
 static Page s_free_memory_page_head;
 static uint64_t s_free_memory_end_address;
+uint64_t g_kernel_page_PML4_table_addr;
 
 /* Private function prototypes -----------------------------------------------*/
-static void free_region(uint64_t v_start, uint64_t v_end);
+static void FreeRegion(uint64_t v_start, uint64_t v_end);
+
+/**
+ * @brief   This function find PML4 table entry according to the `v` virtual
+ *          address.
+ * 
+ * @param map 
+ * @param v 
+ * @param alloc 
+ * @param attribute 
+ * @return PageDirPointerTable 
+ */
+static PageDirPointerTable
+FindPML4TableEntry(uint64_t map,
+                    uint64_t v,
+                    int alloc,
+                    uint32_t attribute);
+/**
+ * @brief   Setup kernel virtual memory, we can allocate a new free memory page
+ *          (2MB) that is used as the new page map level 4 table.
+ */
+static void SetupKVM(void);
+
+/**
+ * @brief   This function map the a virtual memory region to physical memory
+ *          based on map address.
+ * 
+ * @param map 
+ * @param v 
+ * @param end 
+ * @param phys 
+ * @param attr 
+ * @return true 
+ * @return false 
+ */
+static bool MapPages(uint64_t map,
+                        uint64_t v,
+                        uint64_t end,
+                        uint64_t phys,
+                        uint32_t attr);
 
 /* Public function -----------------------------------------------------------*/
 void retrieve_memory_info(void)
@@ -60,9 +103,9 @@ void retrieve_memory_info(void)
 
         /* We collect the free memory. */
         if (v_start > (uint64_t)&l_kernel_end) {
-            free_region(v_start, v_end);
+            FreeRegion(v_start, v_end);
         } else if (v_end > (uint64_t)&l_kernel_end) {
-            free_region((uint64_t)&l_kernel_end, v_end);
+            FreeRegion((uint64_t)&l_kernel_end, v_end);
         }
     }
 
@@ -83,7 +126,7 @@ void retrieve_memory_info(void)
 }
 
 /* Private function ----------------------------------------------------------*/
-static void free_region(uint64_t v_start, uint64_t v_end)
+static void FreeRegion(uint64_t v_start, uint64_t v_end)
 {
     for (uint64_t start = PAGE_ALIGN_UP(v_start);
             start + PAGE_SIZE <= v_end;
@@ -99,7 +142,7 @@ static void free_region(uint64_t v_start, uint64_t v_end)
 void kfree(uint64_t addr)
 {
     /* Check the address is aligned. */
-    ASSERT(addr % PAGE_SIZE == 0);
+    ASSERT_ADDR_IS_ALIGNED(addr);
 
      /* Check the address is not within kernel and not out of memory. */
     ASSERT(addr >= (uint64_t)&l_kernel_end);
@@ -117,7 +160,7 @@ void* kalloc(void)
 
     if (page_address != NULL) {
         /* Check the address is aligned. */
-        ASSERT((uint64_t)page_address % PAGE_SIZE == 0);
+        ASSERT_ADDR_IS_ALIGNED((uint64_t)page_address);
 
         /* Check the address is not within kernel and not out of memory. */
         ASSERT((uint64_t)page_address >= (uint64_t)&l_kernel_end);
@@ -127,4 +170,79 @@ void* kalloc(void)
     }
 
     return (void *)page_address;
+}
+
+static PageDirPointerTable
+FindPML4TableEntry(uint64_t map,
+                    uint64_t v,
+                    int alloc,
+                    uint32_t attribute)
+{
+
+}
+
+static void SetupKVM(void)
+{
+    g_kernel_page_PML4_table_addr = (uint64_t)kalloc();
+    ASSERT(g_kernel_page_PML4_table_addr != NULL);
+
+    memset((void *)g_kernel_page_PML4_table_addr, 0, PAGE_SIZE);
+
+    /* Map the kernel to the same physical address. */
+    bool status =
+    MapPages(g_kernel_page_PML4_table_addr,
+            KERNEL_VIRTUAL_ADDRESS_BASE,   /* Start kernel address.   */
+            s_free_memory_end_address,     /* End kernel address.     */
+            VIR_TO_PHY(KERNEL_VIRTUAL_ADDRESS_BASE),
+            TABLE_ENTRY_PRESENT_ATTRIBUTE | TABLE_ENTRY_WRITABLE_ATTRIBUTE);
+
+    ASSERT(status == true);
+}
+
+static bool MapPages(uint64_t map,
+                        uint64_t v,
+                        uint64_t end,
+                        uint64_t phys,
+                        uint32_t attr)
+{
+    uint64_t v_start = PAGE_ALIGN_DOWN(v);
+    uint64_t v_end = PAGE_ALIGN_UP(end);
+    PageDir pd = NULL;
+    unsigned int index = 0;
+
+    ASSERT(v < end);
+    ASSERT_ADDR_IS_ALIGNED(phys);
+    /* Check out of range memory. */
+    ASSERT(phys + v_end - v_start <= VIRTUAL_ADDRESS_END);
+
+    do {
+        /* Find the page directory pointer table entry which points to page
+         * directory table. */
+        pd = FindPageDirPointerTableEntry(map, v_start, 1, attr);
+        if (pd == NULL) {
+            return false;
+        }
+
+        /* We get the index to locate the correct page entry according to the
+         * virtual address. The index value is 9 bits in total starting from 
+         * bits 21. So we shift right 21 bits and clear other bits except the
+         * lower 9 bits of the result. */
+        index = (v_start >> 21) & 0x1FF;
+
+        /* The value in index is used to find the entry in the page directory
+         * table. We check present bit, if it is set means that we remapping to
+         * the used page. So we don't allow this. */
+        ASSERT(((uint64_t)pd[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE) == 0);
+
+        /* We add physical address and atrributes, and entry bit to indicate
+         * this is 2MB page translation. */
+        pd[index] = (PageDirEntry) (phys | attr | TABLE_ENTRY_ENTRY_ATTRIBUTE);
+
+        /* Map the next page. */
+        v_start += PAGE_SIZE;
+        phys += PAGE_SIZE;
+
+    } while (v_start + PAGE_SIZE <= v_end);
+
+    return true;
 }

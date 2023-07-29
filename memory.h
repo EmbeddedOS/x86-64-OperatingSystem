@@ -1,12 +1,12 @@
 #pragma once
 #include <stdint.h>
-#include <stddef.h>
+#include "common.h"
 
 /* Public define -------------------------------------------------------------*/
 #define PAGE_SIZE                   (2 * 1024 * 1024)   /* 2MB.               */
-#define VIRTUAL_ADDRESS_BASE        0xFFFF800000000000
+#define KERNEL_VIRTUAL_ADDRESS_BASE 0xFFFF800000000000
 #define PHYSICAL_MEMORY_SIZE        0x40000000    /* 1GB. TODO: extend RAM.   */
-#define VIRTUAL_ADDRESS_END         (VIRTUAL_ADDRESS_BASE + \
+#define VIRTUAL_ADDRESS_END         (KERNEL_VIRTUAL_ADDRESS_BASE + \
                                      PHYSICAL_MEMORY_SIZE)
 /**
  * @def Macro align the address to the next 2MB boundary if it is not align. We
@@ -23,9 +23,27 @@
 /**
  * @def Macros convert between virtual address and physical address.
  */
-#define PHY_TO_VIR(p)       ((uint64_t)(p)+VIRTUAL_ADDRESS_BASE)
-#define VIR_TO_PHY(v)       ((uint64_t)(v)-VIRTUAL_ADDRESS_BASE)
+#define PHY_TO_VIR(p)       ((uint64_t)(p)+KERNEL_VIRTUAL_ADDRESS_BASE)
+#define VIR_TO_PHY(v)       ((uint64_t)(v)-KERNEL_VIRTUAL_ADDRESS_BASE)
 
+/**
+ * @def Macros provide page table attributes.
+ */
+#define TABLE_ENTRY_PRESENT_ATTRIBUTE       BIT(0)
+#define TABLE_ENTRY_WRITABLE_ATTRIBUTE      BIT(1)
+#define TABLE_ENTRY_USER_ATTRIBUTE          BIT(2)
+#define TABLE_ENTRY_ENTRY_ATTRIBUTE         BIT(7)
+
+/**
+ * @def Macros retrieve page table entry addresses.
+ */
+#define PAGE_MAP_LV4_TABLE_ADDRESS(p)               (((uint64_t)p >> 12) << 12)
+#define PAGE_DIRECTORY_POINTER_TABLE_ADDRESS(p)     (((uint64_t)p >> 12) << 12)
+#define PAGE_DIRECTORY_TABLE_ADDRESS(p)             (((uint64_t)p >> 12) << 12)
+#define PAGE_ADDRESS(p)                             (((uint64_t)p >> 21) << 21)
+
+#define ADDR_IS_ALIGNED(a)              (((uint64_t)a % PAGE_SIZE) == 0)
+#define ASSERT_ADDR_IS_ALIGNED(a)       ASSERT(ADDR_IS_ALIGNED(a))
 /* Public type ---------------------------------------------------------------*/
 /**
  * @brief       The BIOS function: INT 0x15, EAX = 0x820 is detecting upper
@@ -58,8 +76,20 @@ struct Page {
 
 typedef struct Page Page;
 
+/**
+ * @brief   Page Directory Pointer Table point to Page Directory, Page Directory
+ *          point to Page Directory Entry, etc.
+ */
+typedef uint64_t PageDirEntry;
+typedef PageDirEntry* PageDir;
+typedef PageDir* PageDirPointerTable;
+
+
+
 /* Public function prototype -------------------------------------------------*/
 void retrieve_memory_info(void);
+void init_memory(void);
+
 
 void kfree(uint64_t addr);
 void* kalloc(void);
