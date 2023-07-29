@@ -1685,3 +1685,17 @@
 
 - We will use 2MB memory page instead of 1GB page which is used by the kernel so far.
 - To do the kernel remap, we need to setup the corresponding table entries.
+
+### 40. Free Memory Map
+
+- Assume we want to free a page, we first locate the entry in the page directory table and free the page using the physical address saved in the entry.
+                                PDT           Physical memory
+                              |-----|        |---------------|
+                   PDPT       |Entry|------->|  Page         |
+                 |-----|      |-----|        |---------------|
+     PML4T       |Entry|---->/
+    |-----|      |-----|
+    |Entry|---->/
+    |-----|
+
+- When we want to free the whole memory, we will free the physical pages first. Then we free page directory tables, page directory pointer tables and the page map level 4 table. Generally, we could have a few page directory pointer tables and page directory tables. So we will using loop to free all of them.

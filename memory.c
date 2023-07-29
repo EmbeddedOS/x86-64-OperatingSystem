@@ -80,6 +80,14 @@ static PageDir FindPageDirPointerTableEntry(uint64_t map,
                                             int alloc,
                                             uint32_t attr);
 
+static void FreePages(uint64_t map, uint64_t v_start, uint64_t v_end);
+
+static void FreePML4Table(uint64_t map);
+
+static void FreePDTable(uint64_t map);
+
+static void FreePDPTable(uint64_t map);
+
 /* Public function -----------------------------------------------------------*/
 void RetrieveMemoryInfo(void)
 {
@@ -149,6 +157,16 @@ void InitMemory(void)
 void SwitchVM(uint64_t map)
 {
     LoadCR3(VIR_TO_PHY(map));
+}
+
+void FreeVM(uint64_t map)
+{
+    /* we will free from lower level to higher level tables of paging
+     * hierarchical: Free Physical Page -> Page Directory -> Page Directory
+     * Pointer Table -> Page Map Level 4 Table. */
+    FreePDTable(map);
+    FreePDPTable(map);
+    FreePML4Table(map);
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -316,4 +334,66 @@ static PageDir FindPageDirPointerTableEntry(uint64_t map,
     }
 
     return pd;
+}
+
+static void FreePages(uint64_t map, uint64_t v_start, uint64_t v_end)
+{
+    unsigned int index;
+    ASSERT_ADDR_IS_ALIGNED(v_start);
+    ASSERT_ADDR_IS_ALIGNED(v_end);
+
+    do {
+        /* Get all Page Directory Pointer Table Entry and free them. */
+        PageDir pd = FindPageDirPointerTableEntry(map, v_start, 0, 0);
+        if (pd != NULL) {
+            index = (v_start >> 21) & 0x1FF;
+
+            /* The present bit should be set when we free it because the PDPT,
+             * the entry in the PDPT is pointing to 2MB physical address. */
+            ASSERT(pd[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE);
+
+            kfree(PHY_TO_VIR(PAGE_ADDRESS(pd[index])));
+            pd[index] = 0;
+        }
+
+        v_start += PAGE_SIZE;
+    } while (v_start + PAGE_SIZE <= v_end);
+}
+
+static void FreePML4Table(uint64_t map)
+{
+    kfree(map);
+}
+
+static void FreePDTable(uint64_t map)
+{
+    PageDirPointerTable *map_entry = (PageDirPointerTable *)map;
+
+    /* Each memory map have 512 page directory pointer tables. */
+    for (int i = 0; i < TOTAL_PAGE_DIR_POINTER_TABLE; i++) {
+        if ((uint64_t)map_entry[i] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+            PageDir *pdptr = (PageDir *)
+                         PHY_TO_VIR(PAGE_DIRECTORY_TABLE_ADDRESS(map_entry[i]));
+            
+            /* Each PDP table also include 512 entries which point to page
+             * directory tables. */
+            for (int j = 0; j < TOTAL_PAGE_DIR_TABLE_OF_EACH_PDPT; j++) {
+                if ((uint64_t)pdptr[j] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+                    kfree(PHY_TO_VIR(PAGE_DIRECTORY_TABLE_ADDRESS(pdptr[j])));
+                    pdptr[j] = 0;
+                }
+            }
+        }
+    }
+}
+
+static void FreePDPTable(uint64_t map)
+{
+    PageDirPointerTable *map_entry = (PageDirPointerTable *)map;
+    for (int i = 0; i < TOTAL_PAGE_DIR_POINTER_TABLE; i++) {
+        if ((uint64_t)map_entry[i] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+            kfree(PHY_TO_VIR(PAGE_DIRECTORY_TABLE_ADDRESS(map_entry[i])));
+            map_entry[i] = 0;
+        }
+    }
 }

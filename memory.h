@@ -44,6 +44,13 @@
 
 #define ADDR_IS_ALIGNED(a)              (((uint64_t)a % PAGE_SIZE) == 0)
 #define ASSERT_ADDR_IS_ALIGNED(a)       ASSERT(ADDR_IS_ALIGNED(a))
+
+/* Each memory map have 512 page directory pointer tables. */
+#define TOTAL_PAGE_DIR_POINTER_TABLE                512
+/* Each PDP table also include 512 entries which point to page directory tables.
+ */
+#define TOTAL_PAGE_DIR_TABLE_OF_EACH_PDPT           512
+
 /* Public type ---------------------------------------------------------------*/
 /**
  * @brief       The BIOS function: INT 0x15, EAX = 0x820 is detecting upper
@@ -91,6 +98,7 @@ void LoadCR3(uint64_t map);
 void RetrieveMemoryInfo(void);
 void InitMemory(void);
 void SwitchVM(uint64_t map);
+void FreeVM(uint64_t map);
 
 void kfree(uint64_t addr);
 void* kalloc(void);
