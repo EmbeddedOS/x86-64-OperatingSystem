@@ -1637,3 +1637,46 @@
   - The first two entries are the same as those in the 1GB page translation.
   - The third entry is pointing to paging directory table instead of 1GB physical page. So the bit 7 is 0.
   - The last entry points to the 2MB physical page and the bit 7 is set to 1. indicating a 2MB physical page translation.
+
+### 38. Memory allocator
+
+- We actually get free memory blocks and print on the screen. So we can divide the free memory into a bunch of 2MB pages and these pages are used for the memory module.
+
+- The memory module use 2MB pages instead of 1GB page. Remember we have mapped our kernel to the higher part of the memory, and we are using virtual address in the system after we enter 64-bit mode.
+
+- The free memory the memory modules uses is physical address. So the first thing we need to do is find the physical address according to the virtual address. To achieve it, we use a very simple method.
+
+         Virtual Memory
+      |                   |
+      |                   |
+      |    Kernel space   | 
+      |-------------------|
+      |  Non-canonical    |
+      |   Addresses       |
+      |-------------------|                            Physical memory
+      |                   |< - - - - - - - - - - - >|-------------------|1GB
+      |                   |                         |                   |
+      |     User space    |                         |                   |
+      |-------------------|< - - - - - - - - - - - >|-------------------|0
+
+- The lower 1Gb address space is mapped to the corresponding physical page at this point. And we also mapped the our kernel which is located at the higher part of virtual space to the same physical page.
+
+- We will only remap the kernel space and leave the user space unused. We just map the whole 1GB of memory space to the 1GB physical space, which means the offsets within the memory space remain unchanged. So to get the physical address we can simply subtract the value which is the base of kernel space from the virtual address:
+  - Virtual address = Physical address + 0xFFFF800000000000
+
+         Virtual Memory
+      |-------------------|-\
+      |                   |  \
+      |    Kernel space   |   \
+      |-------------------|-\  \ 0xFFFF800000000000
+      |  Non-canonical    |  \  \
+      |   Addresses       |   \  \
+      |-------------------|    \  \                    Physical memory
+      |                   |     \  \ - - - - - - - >|-------------------|1GB
+      |                   |      \                  |                   |
+      |     User space    |       \                 |                   |
+      |-------------------|        \ - - - - - - - >|-------------------|0
+
+- And also, we only use the first 1GB of RAM and simply ignore other free memory. If you want to use more RAM, don't forget to set the corresponding items in the page translation tables.
+
+- In our system, the memory we care about is from the end of our kernel to the end of the 1st gigabytes of memory. So how do we know where the end of our kernel is? we simply add a symbol at the end of sections at linker script file.

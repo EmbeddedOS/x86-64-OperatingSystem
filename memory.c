@@ -16,9 +16,15 @@
 
 /* Private variable ----------------------------------------------------------*/
 static FreeMemoryRegion s_free_memory_regions[MEMORY_MAX_FREE_REGIONS];
+extern char l_kernel_end;
+static Page s_free_memory_page_head;
+static uint64_t s_free_memory_end_address;
+
+/* Private function prototypes -----------------------------------------------*/
+static void free_region(uint64_t v_start, uint64_t v_end);
 
 /* Public function -----------------------------------------------------------*/
-void print_memory_info(void)
+void retrieve_memory_info(void)
 {
     int32_t count = *(int32_t *)MEMORY_REGION_COUNT_BASE_ADDR;
     uint64_t total_mem = 0;
@@ -40,10 +46,85 @@ void print_memory_info(void)
             free_memory_region_count++;
         }
 
-        printk("Base: %x   size: %uKB   type: %u\n",
+        printk("Physical Address: %x   size: %uKB   type: %u\n",
                 mem_map[i].address,
                 mem_map[i].length/1024,
                 (uint64_t)mem_map[i].type);
     }
     printk("Total Free Memory: %uKB\n", total_mem/1024);
+
+    for (int i = 0; i < free_memory_region_count; i++)
+    {
+        uint64_t v_start = PHY_TO_VIR(s_free_memory_regions[i].address);
+        uint64_t v_end = v_start + s_free_memory_regions[i].length;
+
+        /* We collect the free memory. */
+        if (v_start > (uint64_t)&l_kernel_end) {
+            free_region(v_start, v_end);
+        } else if (v_end > (uint64_t)&l_kernel_end) {
+            free_region((uint64_t)&l_kernel_end, v_end);
+        }
+    }
+
+    s_free_memory_end_address = (uint64_t)s_free_memory_page_head.next 
+                                + PAGE_SIZE;
+
+    Page* start_page = NULL;
+    for (Page *page = s_free_memory_page_head.next; page != NULL;) {
+        if (page != NULL) {
+            start_page = page;
+        }
+        page = page->next;
+    }
+
+    printk("Virtual Free Memory: %x->%x\n",
+            start_page,
+            s_free_memory_end_address);
+}
+
+/* Private function ----------------------------------------------------------*/
+static void free_region(uint64_t v_start, uint64_t v_end)
+{
+    for (uint64_t start = PAGE_ALIGN_UP(v_start);
+            start + PAGE_SIZE <= v_end;
+            start += PAGE_SIZE) {
+
+        if (v_start + PAGE_SIZE <= VIRTUAL_ADDRESS_END)
+        {
+            kfree(start);
+        }
+    }
+}
+
+void kfree(uint64_t addr)
+{
+    /* Check the address is aligned. */
+    ASSERT(addr % PAGE_SIZE == 0);
+
+     /* Check the address is not within kernel and not out of memory. */
+    ASSERT(addr >= (uint64_t)&l_kernel_end);
+    ASSERT(addr + PAGE_SIZE <= VIRTUAL_ADDRESS_END);
+
+    /* To free memory, we just add it to the free memory page linked list. */
+    Page *page_address = (Page *)addr;
+    page_address->next = s_free_memory_page_head.next;
+    s_free_memory_page_head.next = page_address;
+}
+
+void* kalloc(void)
+{
+    Page *page_address = s_free_memory_page_head.next;
+
+    if (page_address != NULL) {
+        /* Check the address is aligned. */
+        ASSERT((uint64_t)page_address % PAGE_SIZE == 0);
+
+        /* Check the address is not within kernel and not out of memory. */
+        ASSERT((uint64_t)page_address >= (uint64_t)&l_kernel_end);
+        ASSERT((uint64_t)page_address + PAGE_SIZE <= VIRTUAL_ADDRESS_END);
+
+        s_free_memory_page_head.next = page_address->next;
+    }
+
+    return (void *)page_address;
 }

@@ -10,5 +10,5 @@ void KMain(void)
 {
     InitIDT();
     printk("Retrieve memory map:\n");
-    print_memory_info();
+    retrieve_memory_info();
 }

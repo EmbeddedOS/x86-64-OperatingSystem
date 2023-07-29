@@ -21,4 +21,7 @@ SECTIONS
     .bss : {
         *(.bss)
     }
+
+    /* We make this symbol to get the end of our kernel. */
+    PROVIDE(l_kernel_end = .);
 }
