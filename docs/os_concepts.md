@@ -1506,3 +1506,134 @@
         ```
 
 - When we retrieve memory info using BIOS service, the data is actually arranged in the structures.
+
+### 37. Paging
+
+- In this section we will set up paging and remap our kernel to the higher part of the memory location. The memory currently look like:
+
+              Memory
+      |      Free         |
+      |-------------------|
+      |      Kernel       |
+      |-------------------| 0x200000
+      |      Free         |
+      |-------------------| 0x100000
+      |      Reserved     |
+      |-------------------| 0x80000
+      |      Free         |
+      |-------------------|
+      |      Loader       | 0x7e00
+      |-------------------|
+      |     MBR code      | 0x7c00
+      |-------------------|
+      |      Free         |
+      |-------------------|
+      | BIOS data vectors |
+      |-------------------| 0
+
+- The kernel is running at address 0x200000 so far. We will map the kernel to 0xFFFF800000000000:
+
+              Memory
+      |                   |
+      |                   |
+      |    Kernel space   | 0xFFFF8000000000000
+      |-------------------|
+      |  Non-canonical    | 0xFFFF7FFFFFFFFFFF
+      |   Addresses       |
+      |                   | 0x8000000000000
+      |-------------------|
+      |                   | 0x7FFFFFFFFFFF
+      |     User space    |
+      |-------------------| 0
+
+- The chunked memory: 0x8000000000000 -> 0xFFFF7FFFFFFFFFFF is non canonical address. The user programs will run in the lower part of the memory location. The non-canonical address area separates the kernel and user space.
+
+- HOW TO SETUP MEMORY LIKE THIS?
+  - This requires us to set up paging. When we enter the 64-bit mode, paging mechanism is enabled. But the way we setup paging is making the virtual address is equal to physical address. Therefore we need to reconfigure it.
+
+- Paging allows us to remap data into physical address space using fixed size blocks called physical pages. The page sizes the processor supports in 64-bit mode are 1GB pages, 2MB pages, and 4KB pages. In our system we use 1GB and 2MB pages.
+
+- The memory address can be divided into different sets of pages. And page translation will use data structure called page translation table to translate virtual pages into physical pages.
+
+- We can translate page into different pages, or we can translate it into the same page, which is used in our kernel so far.
+
+- The translate table:
+  - It is actually a hierarchical data structure which means we will have several tables. !GB page table:
+     63       48          39          30                           0
+    |   Sign    |   PML4    |   PDP     |       Page Offset         |
+                     |              |
+                     |              |                       Physical memory
+                     |              |  |--------|         |-----------------|
+                     |              \->|Entry   |-------->|     PAGE        |
+                     |   |------|      |--------|         |-----------------|
+                     \-->|Entry |---->/
+                         |------|
+            cr3-------->/
+
+  - The sign extension is not used here.
+  - PML4 - Page Map Level 4 table: The table is pointed to by the register `cr3`. Then the 9-bit PML4 value is used as an index to locate the corresponding item in the table.
+    - Each entry in the PML4 includes the address of the next lower level table.
+  - The value of PDP is used as an index to locate the correct entry. And the entry now points to the physical page which is 1GB page.
+  - The Page offset is used as the offset into physical page and now we get the physical address.
+
+- 2MB Page table:
+     63       48          39          30     21                     0
+    |   Sign    |   PML4    |   PDP     |  PD  | Page Offset         |
+                  |            |          |
+                  |            |          |   |-----|         Physical memory
+                  |            |          \-->|Entry|---\   |-----------------|
+                  |            |  |-----|     |-----|    |->|     PAGE        |
+                  |            \->|Entry|--->/              |-----------------|
+                  |   |-----|     |-----|
+                  \-->|Entry|--->/
+                      |-----|
+         cr3-------->/
+
+  - In 2MB Page table:
+    - The virtual address is now divided into more fields. The process is pretty much the same.
+    - `cr3` holds the address of page map level 4 table and PML4 acts as an index to the entry.
+    - Then the value of PDP is used to locate the corresponding entry.
+    - The next level `PD` is Page directory and we can find the entry using PD value. The entry points to the 2MB physical page.
+    - And the page offset is the offset into the page.
+
+- The 4KB page translation is the same except that it requires one more level of translation table.
+- And note that the addresses used in register `cr3` and table entries are all physical addresses.
+
+- These three table entries are used for 1GB page translation:
+     63                                             12               0
+    |       | PAge Map Level-4 Table Address          |               |
+
+     63                                             12           2 1 0
+    |       | Page Directory Pointer Table Address    |         |U|W|P|
+
+     63                         30                        7      2 1 0
+    |       | 1GB Page Address    |                      |1|    |U|W|P|
+
+  - The first entry is stored in register `cr3`. So we simply save the address of the page map level 4 table to the register.
+  - The next entry is page map level 4 table entry which holds the address of page directory pointer table.
+    - In addition, we have some attributes in the entry.
+      - The bit `P` represents present. if the bit is 0, it means the page table or page is not in the memory and page fault exception will generate if we access.
+        - We will set it 1.
+      - The `W` means read write with 0 being read only and 1 being read and write.
+      - The `U` bit means user, if the bit is 0, it means that the user program in ring 3 is not allowed to access the page. If the bit is 1, then then user program in ring 3 can access the page.
+  - Next entry is Page directory pointer table entry that holds:
+    - 1GB page address.
+    - The bit 7th must be 1 indicating a 1GB physical page translation.
+
+- 2MB page translation entries:
+
+     63                                             12               0
+    |       | PAge Map Level-4 Table Address          |               |
+
+     63                                             12           2 1 0
+    |       | Page Directory Pointer Table Address    |         |U|W|P|
+
+     63                                             12    7      2 1 0
+    |       | Page Directory Table Address            |  |0|    |U|W|P|
+
+     63                        21                         7      2 1 0
+    |       | 2M Page Address    |                       |1|    |U|W|P|
+
+  - The first two entries are the same as those in the 1GB page translation.
+  - The third entry is pointing to paging directory table instead of 1GB physical page. So the bit 7 is 0.
+  - The last entry points to the 2MB physical page and the bit 7 is set to 1. indicating a 2MB physical page translation.
