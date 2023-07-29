@@ -66,6 +66,20 @@ static bool MapPages(uint64_t map,
                         uint64_t phys,
                         uint32_t attr);
 
+/**
+ * @brief 
+ * 
+ * @param map           - Page map level 4 table.
+ * @param v             - Virtual address.
+ * @param alloc         - If true, allocate a page if it doesn't exist.
+ * @param attr          - Attribute.
+ * @return PageDir
+ */
+static PageDir FindPageDirPointerTableEntry(uint64_t map,
+                                            uint64_t v,
+                                            int alloc,
+                                            uint32_t attr);
+
 /* Public function -----------------------------------------------------------*/
 void retrieve_memory_info(void)
 {
@@ -178,7 +192,24 @@ FindPML4TableEntry(uint64_t map,
                     int alloc,
                     uint32_t attribute)
 {
+    PageDirPointerTable *map_entry = (PageDirPointerTable *)map;
+    PageDirPointerTable pdptr = NULL;
+    unsigned int index = (v >> 39) & 0x1FF;
 
+    if ((uint64_t)map_entry[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+        pdptr = (PageDirPointerTable) 
+                PHY_TO_VIR(PAGE_DIRECTORY_TABLE_ADDRESS(map_entry[index]));
+    } else if (alloc == 1) {
+        /* New Page Directory not exist, we create new one. */
+        pdptr = (PageDirPointerTable)kalloc();
+        if (pdptr != NULL) {
+            memset(pdptr, 0, PAGE_SIZE);
+            map_entry[index] = (PageDirPointerTable)
+                                (VIR_TO_PHY(pdptr) | attribute);
+        }
+    }
+
+    return pdptr;
 }
 
 static void SetupKVM(void)
@@ -245,4 +276,32 @@ static bool MapPages(uint64_t map,
     } while (v_start + PAGE_SIZE <= v_end);
 
     return true;
+}
+
+static PageDir FindPageDirPointerTableEntry(uint64_t map,
+                                            uint64_t v,
+                                            int alloc,
+                                            uint32_t attr)
+{
+    PageDirPointerTable pdptr = NULL;
+    PageDir pd = NULL;
+    unsigned int index = (v >> 30) & 0x1FF;
+
+    pdptr = FindPML4TableEntry(map, v, alloc, attr);
+    if (pdptr == NULL) {
+        return NULL;
+    }
+
+    if ((uint64_t)pdptr[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+        pd = (PageDir) PHY_TO_VIR(PAGE_DIRECTORY_TABLE_ADDRESS(pdptr[index]));
+    } else if (alloc == 1) {
+        /* If Page Directory does not exist, we create new one. */
+        pd = (PageDir)kalloc();
+        if (pd != NULL) {
+            memset(pd, 0, PAGE_SIZE);
+            pdptr[index] = (PageDir)(VIR_TO_PHY(pd) | attr);
+        }
+    }
+
+    return pd;
 }

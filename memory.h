@@ -35,7 +35,7 @@
 #define TABLE_ENTRY_ENTRY_ATTRIBUTE         BIT(7)
 
 /**
- * @def Macros retrieve page table entry addresses.
+ * @def Macros retrieve page table entry addresses by clear attributes bit.
  */
 #define PAGE_MAP_LV4_TABLE_ADDRESS(p)               (((uint64_t)p >> 12) << 12)
 #define PAGE_DIRECTORY_POINTER_TABLE_ADDRESS(p)     (((uint64_t)p >> 12) << 12)
