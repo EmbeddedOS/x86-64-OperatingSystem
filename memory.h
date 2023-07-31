@@ -1,10 +1,49 @@
+/**
+ * @file memory.h
+ * @author Cong Nguyen (congnt264@gmail.com)
+ * @brief   This file implement features related to memory management. Paging is
+ *          very strong feature of the Intel CPUs. This help we can make much
+ *          virtual memory per process, they are isolated with each other and
+ *          but share with same kernel virtual memory. Each virtual memory is
+ *          managed by a page map structure (we can using it to load virtual
+ *          memory). The page map structure divide the virtual memory become
+ *          fragmentation are called as pages. Each pages have its attribute
+ *          such as writable, readable, present, etc. We can use them to manage
+ *          memory access, every violation could cause a CPU exception.
+ * 
+ *          In our system, we will map the kernel from 0x00 physical address
+ *          to KERNEL_VIRTUAL_ADDRESS_BASE with size is all of our free memory.
+ *          Actually, the kernel text, rodata, data, bss sections start from
+ *          the base + 0x200000. The kernel heap start from l_kernel_end (that
+ *          is symbol which mark the end of the sections) to the end of free
+ *          memory. The kernel stack start from base + 0x200000 and downward.
+ * 
+ *          In kernel heap region, we using it to allocate memory for another
+ *          feature. And user program is one of them, for each request creating
+ *          new process, we make a virtual memory with size is one page (2MB)
+ *          and reside user program to it. All user virtual memories will refer
+ *          to the same virtual address (USER_VIRTUAL_ADDRESS_BASE), but they
+ *          are isolated at all (because its physical memory refer to another
+ *          region). User virtual memory attributes are writeable, and user to
+ *          force them run on ring 3, and no permission to access another
+ *          regions. So That is the way how we manage memory.
+ * 
+ * @version 0.1
+ * @date 2023-07-21
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 #include "common.h"
 
 /* Public define -------------------------------------------------------------*/
 #define PAGE_SIZE                   (2 * 1024 * 1024)   /* 2MB.               */
 #define KERNEL_VIRTUAL_ADDRESS_BASE 0xFFFF800000000000
+#define USER_VIRTUAL_ADDRESS_BASE   0x400000
 #define PHYSICAL_MEMORY_SIZE        0x40000000    /* 1GB. TODO: extend RAM.   */
 #define VIRTUAL_ADDRESS_END         (KERNEL_VIRTUAL_ADDRESS_BASE + \
                                      PHYSICAL_MEMORY_SIZE)
@@ -98,7 +137,34 @@ void LoadCR3(uint64_t map);
 void RetrieveMemoryInfo(void);
 void InitMemory(void);
 void SwitchVM(uint64_t map);
+
+/**
+ * @brief Create new virtual memory for user program. Currently, we only support
+ *        one page for each user program memory space. Every user program will
+ *        using same base virtual memory address (USER_VIRTUAL_ADDRESS_BASE) but
+ *        in physical memory, that refer to another memory regions (random free 
+ *        pages) and also not effect to kernel memory.
+ *        In user virtual memory, kernel pages are always resided at 
+ *        (KERNEL_VIRTUAL_ADDRESS_BASE) address and share between all virtual
+ *        memory. 
+ * 
+ * @param map           - Page map level 4 table.
+ * @param start         - Start location of user program. 
+ * @param size          - size of user program.
+ * @return true         - Create a VM success and mapping to the map.
+ * @return false 
+ */
+bool SetupUVM(uint64_t map, uint64_t start_location, int size);
+
 void FreeVM(uint64_t map);
 
 void kfree(uint64_t addr);
+
+/**
+ * @brief Allocate a page size memory for caller, this function return a virtual
+ *        address base.
+ * 
+ * @return void*        - Virtual memory base address.
+ *                      - NULL if failed.
+ */
 void* kalloc(void);

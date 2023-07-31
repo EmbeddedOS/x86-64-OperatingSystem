@@ -1,5 +1,4 @@
 #include <stddef.h>
-#include <stdbool.h>
 #include <string.h>
 #include "memory.h"
 #include "printk.h"
@@ -22,7 +21,6 @@ static FreeMemoryRegion s_free_memory_regions[MEMORY_MAX_FREE_REGIONS];
 extern char l_kernel_end;
 static Page s_free_memory_page_head;
 static uint64_t s_free_memory_end_address;
-uint64_t g_kernel_page_PML4_table_addr;
 
 /* Private function prototypes -----------------------------------------------*/
 static void FreeRegion(uint64_t v_start, uint64_t v_end);
@@ -46,11 +44,15 @@ FindPML4TableEntry(uint64_t map,
  * @brief   Setup kernel virtual memory, we can allocate a new free memory page
  *          (2MB) that is used as the new page map level 4 table.
  */
-static void SetupKVM(void);
+static uint64_t SetupKVM(void);
 
 /**
- * @brief   This function map the a virtual memory region to physical memory
- *          based on map address.
+ * @brief   This function map the a virtual memory region to physical memory.
+ *          the (phys -> end) map to (virtual -> end). And when we load the page
+ *          using cr3 register, every access to virtual memory region will be
+ *          mapped back to the physical memory. And also, the attributes for
+ *          this memory region will be assigned. Violation could be emit a CPU
+ *          exception.
  * 
  * @param map 
  * @param v 
@@ -149,8 +151,10 @@ void RetrieveMemoryInfo(void)
 
 void InitMemory(void)
 {
-    SetupKVM();
-    SwitchVM(g_kernel_page_PML4_table_addr);
+    uint64_t kernel_map = SetupKVM();
+    ASSERT(kernel_map);
+
+    SwitchVM(kernel_map);
     printk("Memory Manage is working now.\n");
 }
 
@@ -164,23 +168,47 @@ void FreeVM(uint64_t map)
     /* we will free from lower level to higher level tables of paging
      * hierarchical: Free Physical Page -> Page Directory -> Page Directory
      * Pointer Table -> Page Map Level 4 Table. */
+    FreePages(map,
+            USER_VIRTUAL_ADDRESS_BASE,
+            USER_VIRTUAL_ADDRESS_BASE + PAGE_SIZE);
     FreePDTable(map);
     FreePDPTable(map);
     FreePML4Table(map);
 }
 
-/* Private function ----------------------------------------------------------*/
-static void FreeRegion(uint64_t v_start, uint64_t v_end)
-{
-    for (uint64_t start = PAGE_ALIGN_UP(v_start);
-            start + PAGE_SIZE <= v_end;
-            start += PAGE_SIZE) {
 
-        if (v_start + PAGE_SIZE <= VIRTUAL_ADDRESS_END)
-        {
-            kfree(start);
-        }
+bool SetupUVM(uint64_t map, uint64_t start_location, int size)
+{
+    bool status = false;
+    
+    /* 1. Allocation a page for user program. 
+     * TODO: Expend to allow user program using more memory pages.
+     */
+    void *page = kalloc();
+    if (page == NULL) {
+        return false;
     }
+
+    memset(page, 0, PAGE_SIZE);
+
+    /* 2. Map the page to user virtual address. */
+    status = MapPages(map,
+                    USER_VIRTUAL_ADDRESS_BASE,
+                    USER_VIRTUAL_ADDRESS_BASE + PAGE_SIZE,
+                    VIR_TO_PHY(page),
+                    TABLE_ENTRY_PRESENT_ATTRIBUTE 
+                    | TABLE_ENTRY_WRITABLE_ATTRIBUTE
+                    | TABLE_ENTRY_USER_ATTRIBUTE);
+
+    /* 3. Copy user program to the page. */
+    if (status == true) {
+        memcpy(page, (void *)start_location, size);
+    } else {
+        kfree((uint64_t)page);
+        FreeVM(map);
+    }
+
+    return status;
 }
 
 void kfree(uint64_t addr)
@@ -216,6 +244,20 @@ void* kalloc(void)
     return (void *)page_address;
 }
 
+/* Private function ----------------------------------------------------------*/
+static void FreeRegion(uint64_t v_start, uint64_t v_end)
+{
+    for (uint64_t start = PAGE_ALIGN_UP(v_start);
+            start + PAGE_SIZE <= v_end;
+            start += PAGE_SIZE) {
+
+        if (start + PAGE_SIZE <= VIRTUAL_ADDRESS_END)
+        {
+            kfree(start);
+        }
+    }
+}
+
 static PageDirPointerTable
 FindPML4TableEntry(uint64_t map,
                     uint64_t v,
@@ -242,22 +284,28 @@ FindPML4TableEntry(uint64_t map,
     return pdptr;
 }
 
-static void SetupKVM(void)
+static uint64_t SetupKVM(void)
 {
-    g_kernel_page_PML4_table_addr = (uint64_t)kalloc();
-    ASSERT(g_kernel_page_PML4_table_addr != (uint64_t)NULL);
+    uint64_t kernel_page_map = (uint64_t)kalloc();
 
-    memset((void *)g_kernel_page_PML4_table_addr, 0, PAGE_SIZE);
+    if (kernel_page_map != 0) {
+        memset((void *)kernel_page_map, 0, PAGE_SIZE);
 
-    /* Map the kernel to the same physical address. */
-    bool status =
-    MapPages(g_kernel_page_PML4_table_addr,
-            KERNEL_VIRTUAL_ADDRESS_BASE,   /* Start kernel address.   */
-            s_free_memory_end_address,     /* End kernel address.     */
-            VIR_TO_PHY(KERNEL_VIRTUAL_ADDRESS_BASE),
-            TABLE_ENTRY_PRESENT_ATTRIBUTE | TABLE_ENTRY_WRITABLE_ATTRIBUTE);
+        /* Map the kernel to the same physical address. */
+        bool status =
+        MapPages(kernel_page_map,
+                KERNEL_VIRTUAL_ADDRESS_BASE,   /* Start kernel address.   */
+                s_free_memory_end_address,     /* End kernel address.     */
+                VIR_TO_PHY(KERNEL_VIRTUAL_ADDRESS_BASE),
+                TABLE_ENTRY_PRESENT_ATTRIBUTE | TABLE_ENTRY_WRITABLE_ATTRIBUTE);
 
-    ASSERT(status == true);
+        if (!status) {
+            FreeVM(kernel_page_map);
+            kernel_page_map = 0;
+        }
+    }
+
+    return kernel_page_map;
 }
 
 static bool MapPages(uint64_t map,
@@ -350,10 +398,10 @@ static void FreePages(uint64_t map, uint64_t v_start, uint64_t v_end)
 
             /* The present bit should be set when we free it because the PDPT,
              * the entry in the PDPT is pointing to 2MB physical address. */
-            ASSERT(pd[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE);
-
-            kfree(PHY_TO_VIR(PAGE_ADDRESS(pd[index])));
-            pd[index] = 0;
+            if (pd[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE) {
+                kfree(PHY_TO_VIR(PAGE_ADDRESS(pd[index])));
+                pd[index] = 0;
+            }
         }
 
         v_start += PAGE_SIZE;
