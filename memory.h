@@ -1,6 +1,6 @@
 /**
- * @file memory.h
- * @author Cong Nguyen (congnt264@gmail.com)
+ * @file    memory.h
+ * @author  Cong Nguyen (congnt264@gmail.com)
  * @brief   This file implement features related to memory management. Paging is
  *          very strong feature of the Intel CPUs. This help we can make much
  *          virtual memory per process, they are isolated with each other and
@@ -19,20 +19,84 @@
  *          memory. The kernel stack start from base + 0x200000 and downward.
  * 
  *          In kernel heap region, we using it to allocate memory for another
- *          feature. And user program is one of them, for each request creating
+ *          features. And user program is one of them, for each request creating
  *          new process, we make a virtual memory with size is one page (2MB)
  *          and reside user program to it. All user virtual memories will refer
  *          to the same virtual address (USER_VIRTUAL_ADDRESS_BASE), but they
  *          are isolated at all (because its physical memory refer to another
  *          region). User virtual memory attributes are writeable, and user to
  *          force them run on ring 3, and no permission to access another
- *          regions. So That is the way how we manage memory.
+ *          regions. So That is the way how we manage memory. The physical
+ *          memory layout:
+ *
+ *             Physical Memory
+ *          |-------------------| -> Max size. From here down to l_kernel_end.
+ *          | Free: kernel heap |    We use this for kernel dynamic allocation.
+ *          |___________________|    It is used for create user processes, etc.
+ *          |_____Process 1_____|
+ *          |_____Process 2_____|
+ *          | Free: kernel heap |
+ *          |_____Process n_____|
+ *          |                   |
+ *          |                   |
+ *          | - - - - - - - - - | -> kernel code end symbol (l_kernel_end).
+ *          | Free: kernel bss  |
+ *          | - - - - - - - - - |
+ *          | Free: kernel data |
+ *          | - - - - - - - - - | -> After switch to long mode, we relocate the
+ *          | Free: kernel text |    kernel code from 0x100000 to 0x00200000.
+ *          | - - - - - - - - - | 0x00200000 -> In LM, we load stack start from
+ *          | Free: kernel stack|               here and grow downward.
+ *          |                   |
+ *          |                   |
+ *          |                   | -> In loader code, we load kernel code from
+ *          |                   |    disk to 0x00100000.
+ *          |-------------------| 0x00100000
+ *          |      Reserved     |
+ *          |-------------------| 0x80000
+ *          |      Free         | -> We use this to save some memory information
+ *          |                   |    which is provided by BIOS service.
+ *          |-------------------|
+ *          |      Loader       | 0x7E00
+ *          |-------------------|
+ *          |     MBR code      | 0x7C00
+ *          |-------------------|
+ *          |      Free         | -> We use this section as stack when we are
+ *          |                   |    running in loader code: 16, 32 bit modes.
+ *          |-------------------|
+ *          | BIOS data vectors |
+ *          |-------------------| 0
+ *
+ *          Kernel virtual memory layout map to physical memory:
+ *               Kernel virtual memory              Physical Memory
+ *               |KVBase + MaxFreeMem|<----------->|    MaxFreeMem   |
+ *               |      heap         |             |                 |
+ *               |      heap         |             |                 |
+ *               |      bss          |             |                 |
+ *               |      data         |             |                 |
+ *               |      text         |             |                 |
+ *               |0xFFFF800000200000 |<----------->|    0x00200000   |
+ *               |      stack        |             |                 |
+ *         KVBase|0xFFFF800000000000 |<----------->|         0       |
  * 
+ *          Process virtual memory map to physical memory. The physical memory
+ *          address that is mapped to, depends on current free memory address
+ *          of the kernel heap:
+ *                                   Physical Memory    Kernel virtual memory
+ *                                   | MaxFreeMem|     |KVBase + MaxFreeMem  |
+ *                                   |           |     |                     |
+ *          Process Virtual memory   |           |     |                     |
+ *           |0x400000+PageSize|<--->|-----------|<--->|---------------------|
+ *           |                 |     |  A page   |     |Some kernel free page|
+ *           |    0x400000     |<--->|-----------|<--->|---------------------|
+ *                                   |           |     |                     |
+ *                                   |           |     |                     |
+ *                                   |    0      |     | 0xFFFF800000000000  |
+
  * @version 0.1
  * @date 2023-07-21
  * 
  * @copyright Copyright (c) 2023
- * 
  */
 
 #pragma once
@@ -83,7 +147,7 @@
 
 #define ADDR_IS_ALIGNED(a)              (((uint64_t)a % PAGE_SIZE) == 0)
 #define ASSERT_ADDR_IS_ALIGNED(a)       ASSERT(ADDR_IS_ALIGNED(a))
-
+ 
 /* Each memory map have 512 page directory pointer tables. */
 #define TOTAL_PAGE_DIR_POINTER_TABLE                512
 /* Each PDP table also include 512 entries which point to page directory tables.
@@ -129,8 +193,6 @@ typedef struct Page Page;
 typedef uint64_t PageDirEntry;
 typedef PageDirEntry* PageDir;
 typedef PageDir* PageDirPointerTable;
-
-
 
 /* Public function prototype -------------------------------------------------*/
 void LoadCR3(uint64_t map);
