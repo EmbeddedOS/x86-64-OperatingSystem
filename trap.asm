@@ -170,7 +170,7 @@ Vector39:
     push 39
     jmp Trap
 
-EOI:                ; Sen EOI to PIC.
+EOI:                ; Send EOI to PIC.
     mov al, 0x20
     out 0x20, al
     ret

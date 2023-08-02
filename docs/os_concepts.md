@@ -1699,3 +1699,32 @@
     |-----|
 
 - When we want to free the whole memory, we will free the physical pages first. Then we free page directory tables, page directory pointer tables and the page map level 4 table. Generally, we could have a few page directory pointer tables and page directory tables. So we will using loop to free all of them.
+
+### 41. User space
+
+- We will create a virtual space for user applications. In the system, the base of the virtual memory for user space is 0x400000.
+- And we map only one page for the user programs which means the code, data and stack of the programs are located in the same 2MB page.
+
+                        Virtual Memory
+                    |-------------------|-\
+                    |                   |  \
+                    |    Kernel space   |   \
+                    |-------------------|-\  \
+                    |  Non-canonical    |  \  \
+                    |   Addresses       |   \  \
+                    |-------------------|    \  \  - - - - >|-------------|1GB
+                    |    User space     |     \             |             |
+                    |- - - - - - - - - -|- - - \  - - - - ->|- - - - - - -|
+           0x400000 |- - - - 2MB - - - -|- - - -\ - - - - ->|- - -2MB- - -|
+                    |-------------------|        \ - - - - >|-------------|0
+
+## 8. Processes
+
+### 42. The first process
+
+- A process is a program in execution, it contains the program instruction, the data the program needs, heap, stack within the address space. Each process has its own address space.
+
+- Assume that we have 2 processes.
+  - The OS kernel resides in the kernel space of each process. So we map the kernel space to the same physical pages where the kernel is located.
+  - However, the user spaces of these two processes will map to different physical pages. So the process user space saves its own program instructions and data.
+  - The kernel space is the same among all the processes.
