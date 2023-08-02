@@ -40,11 +40,6 @@ FindPML4TableEntry(uint64_t map,
                     uint64_t v,
                     int alloc,
                     uint32_t attribute);
-/**
- * @brief   Setup kernel virtual memory, we can allocate a new free memory page
- *          (2MB) that is used as the new page map level 4 table.
- */
-static uint64_t SetupKVM(void);
 
 /**
  * @brief   This function map the a virtual memory region to physical memory.
@@ -244,6 +239,30 @@ void* kalloc(void)
     return (void *)page_address;
 }
 
+uint64_t SetupKVM(void)
+{
+    uint64_t kernel_page_map = (uint64_t)kalloc();
+
+    if (kernel_page_map != 0) {
+        memset((void *)kernel_page_map, 0, PAGE_SIZE);
+
+        /* Map the kernel to the same physical address. */
+        bool status =
+        MapPages(kernel_page_map,
+                KERNEL_VIRTUAL_ADDRESS_BASE,   /* Start kernel address.   */
+                s_free_memory_end_address,     /* End kernel address.     */
+                VIR_TO_PHY(KERNEL_VIRTUAL_ADDRESS_BASE),
+                TABLE_ENTRY_PRESENT_ATTRIBUTE | TABLE_ENTRY_WRITABLE_ATTRIBUTE);
+
+        if (!status) {
+            FreeVM(kernel_page_map);
+            kernel_page_map = 0;
+        }
+    }
+
+    return kernel_page_map;
+}
+
 /* Private function ----------------------------------------------------------*/
 static void FreeRegion(uint64_t v_start, uint64_t v_end)
 {
@@ -282,30 +301,6 @@ FindPML4TableEntry(uint64_t map,
     }
 
     return pdptr;
-}
-
-static uint64_t SetupKVM(void)
-{
-    uint64_t kernel_page_map = (uint64_t)kalloc();
-
-    if (kernel_page_map != 0) {
-        memset((void *)kernel_page_map, 0, PAGE_SIZE);
-
-        /* Map the kernel to the same physical address. */
-        bool status =
-        MapPages(kernel_page_map,
-                KERNEL_VIRTUAL_ADDRESS_BASE,   /* Start kernel address.   */
-                s_free_memory_end_address,     /* End kernel address.     */
-                VIR_TO_PHY(KERNEL_VIRTUAL_ADDRESS_BASE),
-                TABLE_ENTRY_PRESENT_ATTRIBUTE | TABLE_ENTRY_WRITABLE_ATTRIBUTE);
-
-        if (!status) {
-            FreeVM(kernel_page_map);
-            kernel_page_map = 0;
-        }
-    }
-
-    return kernel_page_map;
 }
 
 static bool MapPages(uint64_t map,

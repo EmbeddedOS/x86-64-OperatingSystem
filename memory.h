@@ -24,10 +24,12 @@
  *          and reside user program to it. All user virtual memories will refer
  *          to the same virtual address (USER_VIRTUAL_ADDRESS_BASE), but they
  *          are isolated at all (because its physical memory refer to another
- *          region). User virtual memory attributes are writeable, and user to
- *          force them run on ring 3, and no permission to access another
- *          regions. So That is the way how we manage memory. The physical
- *          memory layout:
+ *          region). And they share with the same kernel space at address
+ *          (KERNEL_VIRTUAL_ADDRESS_BASE). User virtual memory attributes are
+ *          writeable, and user to force them run on ring 3, and no permission
+ *          to access another regions and kernel memory also.
+ *          So That is the way how we manage memory.
+ *          The physical memory layout:
  *
  *             Physical Memory
  *          |-------------------| -> Max size. From here down to l_kernel_end.
@@ -81,17 +83,37 @@
  * 
  *          Process virtual memory map to physical memory. The physical memory
  *          address that is mapped to, depends on current free memory address
- *          of the kernel heap:
- *                                   Physical Memory    Kernel virtual memory
- *                                   | MaxFreeMem|     |KVBase + MaxFreeMem  |
+ *          of the kernel heap, and kernel code reside on 0xFFFF800000000000 
+ *          address of every process virtual memory.
+ *          Process Virtual memory:
+ *           |KVBase+MaxFreeMem |<- - - -\
+ *           |                  |         \
+ *           |   Kernel code    |          \
+ *           |0xFFFF800000000000|<-\        \
+ *           |                  |   \        \
+ *           |                  |    \        \         Physical Memory
+ *           |                  |     \        \- - - - >| MaxFreeMem|
+ *           |                  |      \                 |           |
+ *           |0x400000+PageSize |< - - -\ - - - -- - - ->|-----------|
+ *           |    User code     |        \               |A free page|
+ *           |    0x400000      |< - - - -\ - - -- - - ->|-----------|
+ *                                         \             |kernel code|
+ *                                          \- - - - - ->|    0      |
+ *
+ *          Process Virtual memory
+ *           |KVBase+MaxFreeMem |
+ *           |                  |
+ *           |   Kernel code    |   Physical Memory     Kernel virtual memory
+ *           |0xFFFF800000000000|    | MaxFreeMem|     |KVBase + MaxFreeMem  |
+ *           |                  |    |           |     |                     |
+ *           |                  |    |           |     |                     |
+ *           |                  |    |           |     |                     |
+ *           |                  |    |           |     |                     |
+ *           |0x400000+PageSize |<-->|-----------|<--->|---------------------|
+ *           |    User code     |    |  A page   |     |Some kernel free page|
+ *           |    0x400000      |<-->|-----------|<--->|---------------------|
  *                                   |           |     |                     |
- *          Process Virtual memory   |           |     |                     |
- *           |0x400000+PageSize|<--->|-----------|<--->|---------------------|
- *           |                 |     |  A page   |     |Some kernel free page|
- *           |    0x400000     |<--->|-----------|<--->|---------------------|
- *                                   |           |     |                     |
- *                                   |           |     |                     |
- *                                   |    0      |     | 0xFFFF800000000000  |
+ *                                   |           |     | 0xFFFF800000000000  |
 
  * @version 0.1
  * @date 2023-07-21
@@ -217,6 +239,12 @@ void SwitchVM(uint64_t map);
  * @return false 
  */
 bool SetupUVM(uint64_t map, uint64_t start_location, int size);
+
+/**
+ * @brief   Setup kernel virtual memory, we can allocate a new free memory page
+ *          (2MB) that is used as the new page map level 4 table.
+ */
+static uint64_t SetupKVM(void);
 
 void FreeVM(uint64_t map);
 
