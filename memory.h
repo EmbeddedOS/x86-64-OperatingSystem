@@ -244,7 +244,7 @@ bool SetupUVM(uint64_t map, uint64_t start_location, int size);
  * @brief   Setup kernel virtual memory, we can allocate a new free memory page
  *          (2MB) that is used as the new page map level 4 table.
  */
-static uint64_t SetupKVM(void);
+uint64_t SetupKVM(void);
 
 void FreeVM(uint64_t map);
 

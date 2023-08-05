@@ -28,6 +28,8 @@ global EOI          ; The end of interrupt.
 global ReadISR
 global LoadIDT
 global LoadCR3
+global ReadCR2
+global ProcessStart
 
 Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push rax        ; purpose registers. Print character to debug. And call the
@@ -189,3 +191,11 @@ LoadCR3:
     mov rax, rdi
     mov cr3, rax
     ret
+
+ReadCR2:
+    mov rax, cr2
+    ret
+
+ProcessStart:
+    mov rsp, rdi        ; Set RSP point to process stack frame.
+    jmp TrapReturn      ; After trap return, we we running in process code.

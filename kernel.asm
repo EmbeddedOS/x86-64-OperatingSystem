@@ -15,6 +15,8 @@
 ; address 0x200000 after we load the kernel. So we use linker script to do it.
 
 section .data
+global TaskStateSegment
+
 ; Global Descriptor Table Structure for 64 bit mode.
 GDT64:
     dq 0            ; First entry is NULL.
@@ -41,13 +43,13 @@ GDT64Pointer: dw GDT64Len - 1   ; First two bytes is GDT length.
               dq GDT64          ; Next four bytes are GDT64 address.
 
 ; Task state segment structure - 128 bytes.
-TSS:
+TaskStateSegment:
     dd 0                    ; First four bytes is reserved.
     dq 0xFFFF800000190000   ; Set RSP0 to new address.
     times 88 db 0           ; Clear next 88 bytes to 0.
     dd TssLen               ; IO permission bitmap, assign size of TSS means we
                             ; don't use the IO permission bitmap.
-TssLen: equ $-TSS
+TssLen: equ $-TaskStateSegment
 
 section .text
 extern KMain
@@ -62,7 +64,7 @@ Start:
 
     ; 2. Set Task state segment.
 SetTSS:
-    mov rax, TSS                    ; Point to TSS structure.
+    mov rax, TaskStateSegment       ; Point to TSS structure.
     mov rdi, TaskStateSegDes64
     mov [rdi + 2], ax
     shr rax, 16

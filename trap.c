@@ -1,4 +1,6 @@
 #include "trap.h"
+#include "assert.h"
+#include "printk.h"
 
 /* Private define ------------------------------------------------------------*/
 #define MAXIMUM_IRQ_NUMBER 256
@@ -80,8 +82,18 @@ void InterruptHandler(TrapFrame *tf)
         }
     }
     break;
-    default:
-        while (1);
-    break;
+    default: {
+        char msg[70] = {0};
+        sprintk(msg,
+                "[Error %d at ring: %d] %d:%x %x",
+                tf->trapno,         /* Trap number. */
+                (tf->cs & 3),       /* Ring number. */
+                tf->error_code,     /* Error code. */
+                ReadCR2(),          /* Virtual address. */
+                tf->rip);           /* Address of error instruction. */
+        panic(msg);
+    }
+
+        break;
     }
 }

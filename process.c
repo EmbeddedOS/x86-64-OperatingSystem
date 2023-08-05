@@ -4,6 +4,8 @@
 #include <string.h>
 
 /* Private variable ----------------------------------------------------------*/
+
+extern TSS TaskStateSegment; /* Extern from ASM. */
 static Process s_process_manager[MAXIMUM_NUMBER_OF_PROCESS];
 static int s_pid_num = 1;
 
@@ -12,6 +14,16 @@ static int s_pid_num = 1;
 static Process *FindFreeProcessSlot(void);
 static void SetProcessEntry(Process* proc);
 
+/**
+ * @brief   Set TaskStateSegment point to top of the process's kernel stack. So
+ *          when we jump from ring 3 to ring 0, the kernel stack will be used.
+ * 
+ * @param   proc 
+ * @return  none
+ */
+static void SetTSS(Process *proc);
+
+void MainFirstProcess(void);
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
@@ -24,7 +36,15 @@ void InitProcess(void)
 void StartScheduler(void)
 {
     /* Test switch to first process. */
+
+    /* 1. Set TaskStateSegment point to it's kernel stack. */
+    SetTSS(&s_process_manager[0]);
+
+    /* 2. Switch to user virtual memory. */
     SwitchVM(s_process_manager[0].page_map);
+
+    /* 3. Start user program. */
+    ProcessStart(s_process_manager[0].tf);
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -72,13 +92,21 @@ static void SetProcessEntry(Process* proc)
     ASSERT(proc->page_map != 0);
 
     /* Map user memory (2MB) to the kernel virtual memory we just made. */
-    /* We use main_first_process to test first process. */
-    ASSERT(SetupUVM(proc->page_map, (uint64_t)&main_first_process, PAGE_SIZE));
+    /* We use MainFirstProcess to test first process. */
+    ASSERT(SetupUVM(proc->page_map, (uint64_t)MainFirstProcess, PAGE_SIZE));
 }
 
-void main_first_process(void)
+static void SetTSS(Process *proc)
 {
-    /* Test user access to kernel virtual memory. */
+    /* We set TSS structure by assigning the top of the kernel stack to rsp0 in
+     * the TaskStateSegment. */
+    TaskStateSegment.rsp0 = proc->stack + STACK_SIZE;
+}
+
+void MainFirstProcess(void)
+{
+    /* Test user access to kernel virtual memory. This will be generate CPU
+     * exception. */
     char *p = (char *)0xFFFF800000200020;
     *p = 1;
 }

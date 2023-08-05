@@ -39,13 +39,14 @@ typedef struct {
 } Process;
 
 /**
- * @brief   The TSS is used only for setting up stack pointer for ring 0.
- * 
+ * @brief   The TSS (Task state segment) structure is used only for setting up
+ *          stack pointer for ring 0.
  */
 typedef struct {
     uint32_t res0;
     uint64_t rsp0;
     uint64_t rsp1;
+    uint64_t rsp2;
     uint64_t res1;
     uint64_t ist1;
     uint64_t ist2;
@@ -57,9 +58,10 @@ typedef struct {
     uint64_t res2;
     uint16_t res3;
     uint16_t iopb;
-} __attribute__ ((packed)) Task;
+} __attribute__ ((packed)) TSS;
 
 /* Public function prototype -------------------------------------------------*/
 
 void InitProcess(void);
 void StartScheduler(void);
+void ProcessStart(TrapFrame *tf);

@@ -5,6 +5,7 @@
 #include "trap.h"
 #include "assert.h"
 #include "memory.h"
+#include "process.h"
 
 void KMain(void)
 {
@@ -12,4 +13,6 @@ void KMain(void)
     printk("Retrieve memory map:\n");
     RetrieveMemoryInfo();
     InitMemory();
+    InitProcess();
+    StartScheduler();
 }
