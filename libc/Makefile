@@ -3,8 +3,9 @@ SC=gcc
 SCC=g++
 FLAGS=-w -g -ffreestanding  -I ./include -c
 
-OBJS= ./string.c
-
+OBJS= ./string.c \
+	  ./list.c
+	  
 OBJO = $(OBJS:.c=.o) 
 OBJ=libc.a
 
