@@ -48,9 +48,6 @@ Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push r14
     push r15
 
-    inc byte[0xb8010]
-    mov byte[0xb8011], 0xE
-
     mov rdi, rsp    ; Pass stack pointer to the InterruptHandler.
     call InterruptHandler 
 TrapReturn:         ; When InterruptHandler return, we back to the trap, and
