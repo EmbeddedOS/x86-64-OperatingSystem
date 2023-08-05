@@ -23,7 +23,6 @@ static void SetProcessEntry(Process* proc);
  */
 static void SetTSS(Process *proc);
 
-void MainFirstProcess(void);
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
@@ -92,8 +91,8 @@ static void SetProcessEntry(Process* proc)
     ASSERT(proc->page_map != 0);
 
     /* Map user memory (2MB) to the kernel virtual memory we just made. */
-    /* We use MainFirstProcess to test first process. */
-    ASSERT(SetupUVM(proc->page_map, (uint64_t)MainFirstProcess, PAGE_SIZE));
+    /* We use 0x200000 to test first process. */
+    ASSERT(SetupUVM(proc->page_map, (uint64_t)PHY_TO_VIR(0x20000), 6000));
 }
 
 static void SetTSS(Process *proc)
@@ -101,12 +100,4 @@ static void SetTSS(Process *proc)
     /* We set TSS structure by assigning the top of the kernel stack to rsp0 in
      * the TaskStateSegment. */
     TaskStateSegment.rsp0 = proc->stack + STACK_SIZE;
-}
-
-void MainFirstProcess(void)
-{
-    /* Test user access to kernel virtual memory. This will be generate CPU
-     * exception. */
-    char *p = (char *)0xFFFF800000200020;
-    *p = 1;
 }

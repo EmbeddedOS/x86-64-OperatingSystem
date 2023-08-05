@@ -6,6 +6,7 @@
 #include "assert.h"
 #include "memory.h"
 #include "process.h"
+#include "syscall.h"
 
 void KMain(void)
 {
@@ -14,5 +15,6 @@ void KMain(void)
     RetrieveMemoryInfo();
     InitMemory();
     InitProcess();
+    InitSystemCall();
     StartScheduler();
 }
