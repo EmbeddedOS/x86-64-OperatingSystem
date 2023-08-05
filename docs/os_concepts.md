@@ -1728,3 +1728,27 @@
   - The OS kernel resides in the kernel space of each process. So we map the kernel space to the same physical pages where the kernel is located.
   - However, the user spaces of these two processes will map to different physical pages. So the process user space saves its own program instructions and data.
   - The kernel space is the same among all the processes.
+
+### 43. System calls
+
+- Using interrupt to request kernel service:
+
+User mode
+    |Print Function     |
+            ||
+            \/
+    |   Int 0x80        |
+            ||
+    ---------------------
+Kernel mode ||
+            \/
+    |Interrupt handler  |
+            ||
+            \/
+    |   System call     |
+            ||
+            \/
+    |   Write screen    |
+
+- When we run `int` instruction, CPU will retrieve the corresponding descriptor in the IDT.
+- Then we enter kernel mode and this request is processed in the `InterruptHandler`. After it performs some checks of the request, it then gets to system call part and the write screen function will finally be called.
