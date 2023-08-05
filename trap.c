@@ -1,6 +1,7 @@
 #include "trap.h"
 #include "assert.h"
 #include "printk.h"
+#include "syscall.h"
 
 /* Private define ------------------------------------------------------------*/
 #define MAXIMUM_IRQ_NUMBER 256
@@ -51,6 +52,12 @@ void InitIDT(void)
     InitIDTEntry(&s_interrupt_entries[19], (uint64_t)Vector19, 0x8E);
     InitIDTEntry(&s_interrupt_entries[32], (uint64_t)Vector32, 0x8E);
     InitIDTEntry(&s_interrupt_entries[39], (uint64_t)Vector39, 0x8E);
+    
+    /* Init system call handler, DPL attribute is set to 3 instead of 0,
+     * Because we will fire the interrupt in ring 3, so user can fire this
+     * interrupt. */
+    InitIDTEntry(&s_interrupt_entries[SYSTEM_CALL_INTERRUPT_NUMBER],
+                (uint64_t)Syscall, 0xEE);
 
     s_IDT_ptr.limit = sizeof(s_interrupt_entries) - 1;
     s_IDT_ptr.address = (uint64_t)s_interrupt_entries;
@@ -77,11 +84,16 @@ void InterruptHandler(TrapFrame *tf)
     
     case 39: {      /* Spurious interrupt. */
         uint8_t isr_value = ReadISR();
-        if ((isr_value & (1<< 7)) != 0) {
+        if ((isr_value & (1<<7)) != 0) {
             EOI();
         }
     }
     break;
+    case SYSTEM_CALL_INTERRUPT_NUMBER: {
+        SystemCall(tf);
+    }
+    break;
+
     default: {
         char msg[70] = {0};
         sprintk(msg,

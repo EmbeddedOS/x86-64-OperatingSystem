@@ -23,6 +23,7 @@ global Vector18
 global Vector19
 global Vector32
 global Vector39
+global Syscall
 
 global EOI          ; The end of interrupt.
 global ReadISR
@@ -168,6 +169,12 @@ Vector39:
     push 0
     push 39
     jmp Trap
+
+Syscall:
+    push 0
+    push 0x80       ; Push trap number 0x80, so we know it is software
+    jmp Trap        ; interrupt.
+
 
 EOI:                ; Send EOI to PIC.
     mov al, 0x20

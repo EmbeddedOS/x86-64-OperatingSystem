@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+/* Public define -------------------------------------------------------------*/
+#define SYSTEM_CALL_INTERRUPT_NUMBER    0x80
+
 /* Public type ---------------------------------------------------------------*/
 
 typedef struct {
@@ -80,6 +83,7 @@ void Vector18(void);
 void Vector19(void);
 void Vector32(void);
 void Vector39(void);
+void Syscall(void);
 void EOI(void);
 uint8_t ReadISR(void);
 void LoadIDT(IDTPointer *ptr);
