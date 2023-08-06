@@ -1762,3 +1762,7 @@ Kernel mode ||
   - When we jump back to user mode, we will actually run the second process. After it runs for a period of time, 10ms in this case, the timer interrupt is fired and we will get to trap handler again. Choose the third process, and we get to user mode to run the program. When the time for this process is up, we will select the first process in the handler again.
 
 - In process module, we save runnable process in the linked list called ready list.
+
+### 45. Sleep and wake up
+
+- Suppose we are at process 1 and the sleep InterruptHandler is called, we decide to put the process in sleep state. Then we call the scheduler to select process 2. And then the process 3. After the time for the process 3 is up, the process 2 is select again. Because process 1 is not active, we will not run it until it becomes active again.
