@@ -130,6 +130,51 @@ void Wakeup(int wait_id)
     }
 }
 
+void Exit(void)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->kill_proc_list;
+
+    proc = scheduler->current_proc;
+    proc->state = PROCESS_SLOT_KILLED;
+
+    ListPushBack(list, (List *)proc);
+
+    /* We need to call Wakeup() function because the init process which is first
+     * process in this system is constantly calling Wait() function to do the
+     * cleaning up, and the process maybe is sleeping state. So we wake it up
+     * before we switch to another process.
+     */
+    Wakeup(INIT_PROCESS_WAIT_ID);
+
+    /* We re-schedule, the current process will be pop from ready list. */
+    Schedule();
+}
+
+void Wait(void)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->kill_proc_list;
+
+    /* Forever loop to cleanup resources of all killed process. */
+    while (1) {
+        if (!ListIsEmpty(list)) {
+            proc = (Process *)ListPopFront(list);
+            ASSERT(proc->state == PROCESS_SLOT_KILLED);
+
+            /* Cleanup the process. */
+            kfree(proc->stack);
+            FreeVM(proc->page_map);
+            memset(proc, 0, sizeof(Process));
+        } else {
+            /* Sleep if we don't have any killed process. */
+            Sleep(INIT_PROCESS_WAIT_ID);
+        }
+    }
+}
+
 /* Private function ----------------------------------------------------------*/
 static Process *FindFreeProcessSlot(void)
 {
@@ -230,6 +275,7 @@ List *WaitListRemoveReadyProcess(HeadList *list, int wait_id)
     List *item = NULL;
 
     while(current !=NULL) {
+        /* Wakeup if matching id. */
         if (((Process *)current)->wait_id == wait_id) {
             /* If found a ready process return it. */
             prev->next = current->next;

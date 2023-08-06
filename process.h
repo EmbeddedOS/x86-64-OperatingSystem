@@ -9,13 +9,17 @@
 #define STACK_SIZE                      PAGE_SIZE    /* 2MB. */
 #define MAXIMUM_NUMBER_OF_PROCESS       10
 #define USER_STACK_START                (USER_VIRTUAL_ADDRESS_BASE + STACK_SIZE)
+#define NORMAL_PROCESS_WAIT_ID          -1
+#define INIT_PROCESS_WAIT_ID             1
+
 /* Public type ---------------------------------------------------------------*/
 typedef enum  {
     PROCESS_SLOT_UNUSED = 0,
     PROCESS_SLOT_INITIALIZED,
     PROCESS_SLOT_READY,
     PROCESS_SLOT_RUNNING,
-    PROCESS_SLOT_SLEEPING
+    PROCESS_SLOT_SLEEPING,
+    PROCESS_SLOT_KILLED
 } ProcessState;
 
 
@@ -74,6 +78,7 @@ typedef struct {
     Process *current_proc;
     HeadList ready_proc_list;
     HeadList wait_proc_list;
+    HeadList kill_proc_list;
 } Scheduler;
 
 /* Public function prototype -------------------------------------------------*/
@@ -107,3 +112,18 @@ void Sleep(int wait_id);
  * @param[in]   wait_id     - Wait id to wake up processes matching.
  */
 void Wakeup(int wait_id);
+
+/**
+ * @brief       Exit current process, remove it from ready list.
+ * 
+ */
+void Exit(void);
+
+/**
+ * @brief       Waiting for children process exit, the init process call this to
+ *              cleanup exiting processes. This system call never return from
+ *              kernel mode, so, this function should be called when the init
+ *              process has done it's job in user space.
+ * 
+ */
+void Wait(void);

@@ -14,6 +14,9 @@ static SYSTEM_CALL s_syscall_table[MAXIMUM_SYSTEM_CALLS] = {0};
 /* Private function prototype ------------------------------------------------*/
 static int SysWrite(int64_t *arg);
 static int SysSleep(int64_t *arg);
+static int SysExit(int64_t *arg);
+static int SysWait(int64_t *arg);
+
 static void RegisterSystemCall(uint16_t num, SYSTEM_CALL call);
 
 /* Public function -----------------------------------------------------------*/
@@ -21,6 +24,9 @@ void InitSystemCall(void)
 {
     RegisterSystemCall(0, SysWrite);
     RegisterSystemCall(1, SysSleep);
+    RegisterSystemCall(2, SysExit);
+    RegisterSystemCall(3, SysWait);
+
 }
 
 void SystemCall(TrapFrame *tf)
@@ -74,11 +80,23 @@ static int SysSleep(int64_t *arg)
 
     /* Block current process here until wakeup time is retrieved. */
     while (ticks - old_ticks < sleep_ticks) {
-        Sleep(-1);
+        Sleep(NORMAL_PROCESS_WAIT_ID);
         /* After wakeup from sleep, we get ticks again, and check process is
          * ready to run or not. If the time is not archived, we sleep again. */
         ticks = GetTicks();
     }
 
+    return 0;
+}
+
+static int SysExit(int64_t *arg)
+{
+    Exit();
+    return 0;
+}
+
+static int SysWait(int64_t *arg)
+{
+    Wait();
     return 0;
 }
