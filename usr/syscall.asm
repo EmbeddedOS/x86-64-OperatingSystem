@@ -2,8 +2,8 @@ section .text
 global Write
 
 Write:
-    ; 1. Allocate 16 bytes space on the stack for the arguments.
-    sub rsp, 0x10
+    ; 1. Allocate 24 bytes space on the stack for three arguments.
+    sub rsp, 0x18
 
     ; 2. Prepare arguments.
     mov eax, 0              ; System call number.
@@ -21,5 +21,5 @@ Write:
 
     ; 4. Restore the stack and return to the caller. Response from kernel is
     ; saved at `rax` register.
-    add rsp, 0x10
+    add rsp, 0x18
     ret

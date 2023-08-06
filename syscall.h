@@ -20,7 +20,8 @@
  *          Step 1: User prepare for requesting service:
  *              + When the user program want to request a kernel service, it
  *                have to prepare argument by itself.
- *              + Step 1.1: Create a stack frame 16 bytes to save arguments.
+ *              + Step 1.1: Create a stack frame (number of arguments * 8) bytes
+ *                to save arguments.
  *              + Step 1.2: Set system call number to `eax` register.
  *              + Step 1.3: Set arguments to the stack frame.
  *              + Step 1.4: set number of arguments to `rdi`.
