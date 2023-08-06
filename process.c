@@ -28,6 +28,8 @@ static void Schedule(void);
 
 static void SwitchProcess(Process *prev, Process *new);
 
+List *WaitListRemoveReadyProcess(HeadList *list, int wait_id);
+
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
@@ -69,7 +71,7 @@ Scheduler *GetScheduler(void)
     return &s_scheduler;
 }
 
-void yield(void)
+void Yield(void)
 {
     Process *proc = NULL;
     Scheduler *scheduler = GetScheduler();
@@ -87,6 +89,45 @@ void yield(void)
 
     /* Process switch. */
     Schedule();
+}
+
+void Sleep(int wait_id)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->wait_proc_list;
+
+    /* Push current process to sleep process list. */
+    proc = scheduler->current_proc;
+    proc->state = PROCESS_SLOT_SLEEPING;
+    proc->wait_id = wait_id;
+
+    ListPushBack(list, (List *)proc);
+
+    /* Re-schedule to run next process. */
+    Schedule();
+}
+
+void Wakeup(int wait_id)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *wait_list = &scheduler->wait_proc_list;
+    HeadList *ready_list = &scheduler->ready_proc_list;
+
+    /* Find correct processes which are wake up time and remove it from wait
+     * list. */
+    proc = (Process *)WaitListRemoveReadyProcess(wait_list, wait_id);
+
+    while (proc != NULL)
+    {
+        /* Push the process to ready list if now is it's wakeup time. */
+        proc->state = PROCESS_SLOT_READY;
+        ListPushBack(ready_list, (List *)proc);
+
+        /* Check another processes in the wait list. */
+        proc = (Process *)WaitListRemoveReadyProcess(wait_list, wait_id);
+    }
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -111,6 +152,7 @@ static void SetProcessEntry(Process* proc, uint64_t user_addr)
 
     proc->state = PROCESS_SLOT_INITIALIZED;
     proc->pid = s_pid_num++;
+    proc->wait_id = 0;
 
     /* Each process has 2MB its own kernel stack. */
     proc->stack = (uint64_t)kalloc();
@@ -179,4 +221,35 @@ static void SwitchProcess(Process *prev, Process *new)
     SetTSS(new);
     SwitchVM(new->page_map);
     ContextSwitch(&prev->context, new->context);
+}
+
+List *WaitListRemoveReadyProcess(HeadList *list, int wait_id)
+{
+    List *current = list->next;
+    List *prev = (List *)list;
+    List *item = NULL;
+
+    while(current !=NULL) {
+        if (((Process *)current)->wait_id == wait_id) {
+            /* If found a ready process return it. */
+            prev->next = current->next;
+            item = current;
+
+            if (list->next == NULL) {
+                /* Current list is empty. */
+                list->tail = NULL;
+            } else if (current->next == NULL) {
+                /* The last one item in the list. */
+                list->tail = prev;
+            }
+
+            break;
+        }
+
+        /* Check next process in the list. */
+        prev = current;
+        current = current->next;
+    }
+
+    return item;
 }

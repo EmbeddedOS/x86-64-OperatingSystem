@@ -1,5 +1,6 @@
 
 #include <stddef.h>
+#include "process.h"
 #include "syscall.h"
 #include "assert.h"
 #include "printk.h"
@@ -12,12 +13,14 @@ static SYSTEM_CALL s_syscall_table[MAXIMUM_SYSTEM_CALLS] = {0};
 
 /* Private function prototype ------------------------------------------------*/
 static int SysWrite(int64_t *arg);
+static int SysSleep(int64_t *arg);
 static void RegisterSystemCall(uint16_t num, SYSTEM_CALL call);
 
 /* Public function -----------------------------------------------------------*/
 void InitSystemCall(void)
 {
     RegisterSystemCall(0, SysWrite);
+    RegisterSystemCall(1, SysSleep);
 }
 
 void SystemCall(TrapFrame *tf)
@@ -57,4 +60,25 @@ static int SysWrite(int64_t *arg)
     printk(buffer);
     // printk("User send: %d, %s, %d\n", file_descriptor, buffer, length);
     return length;
+}
+
+static int SysSleep(int64_t *arg)
+{
+    uint64_t old_ticks = 0;
+    uint64_t ticks = 0;
+    uint64_t sleep_ticks = arg[0];
+
+    /* Get current ticks. */
+    ticks = GetTicks();
+    old_ticks = ticks;
+
+    /* Block current process here until wakeup time is retrieved. */
+    while (ticks - old_ticks < sleep_ticks) {
+        Sleep(-1);
+        /* After wakeup from sleep, we get ticks again, and check process is
+         * ready to run or not. If the time is not archived, we sleep again. */
+        ticks = GetTicks();
+    }
+
+    return 0;
 }

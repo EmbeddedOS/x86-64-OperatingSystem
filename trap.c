@@ -10,6 +10,7 @@
 /* Private variable ----------------------------------------------------------*/
 static IDTPointer s_IDT_ptr;
 static IDTEntry s_interrupt_entries[MAXIMUM_IRQ_NUMBER];
+static uint64_t s_system_ticks = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 /**
@@ -66,6 +67,11 @@ void InitIDT(void)
     LoadIDT(&s_IDT_ptr);
 }
 
+uint64_t GetTicks(void)
+{
+    return s_system_ticks;
+}
+
 /* Private function ----------------------------------------------------------*/
 static void InitIDTEntry(IDTEntry *entry, uint64_t address, uint8_t attribute)
 {
@@ -79,13 +85,17 @@ static void InitIDTEntry(IDTEntry *entry, uint64_t address, uint8_t attribute)
 void InterruptHandler(TrapFrame *tf)
 {
     switch (tf->trapno) {
-    case 32: {      /* Timer interrupt. */
+    case 32: {      /* Timer interrupt which is called every 10ms. */
+        /* Increase system ticks and wakeup processes which have wait_id -1. */
+        s_system_ticks++;
+        Wakeup(-1);
+
         EOI();
 
-        /* If the handler is called when running in the user mode, we yield()
+        /* If the handler is called when running in the user mode, we Yield()
          * to make current process give up the CPU resource, and choose another
          * another process. */
-        yield();
+        Yield();
     }
     break;
     case 39: {      /* Spurious interrupt. */

@@ -14,7 +14,8 @@ typedef enum  {
     PROCESS_SLOT_UNUSED = 0,
     PROCESS_SLOT_INITIALIZED,
     PROCESS_SLOT_READY,
-    PROCESS_SLOT_RUNNING
+    PROCESS_SLOT_RUNNING,
+    PROCESS_SLOT_SLEEPING
 } ProcessState;
 
 
@@ -25,6 +26,7 @@ typedef enum  {
  *
  * @property next       - Next process to run.
  * @property pid        - Process Identification number of a process.
+ * @property wait_id    - Save the process wait id.
  * @property state      - Current state of process
  * @property page_map   - Saves the address of page map level 4 table, when we
  *                        run the process, we use this to switch to the process
@@ -38,6 +40,7 @@ typedef enum  {
 typedef struct {
     List *next;
     int pid;
+    int wait_id;
     ProcessState state;
     uint64_t page_map;
     uint64_t context;
@@ -70,6 +73,7 @@ typedef struct {
 typedef struct {
     Process *current_proc;
     HeadList ready_proc_list;
+    HeadList wait_proc_list;
 } Scheduler;
 
 /* Public function prototype -------------------------------------------------*/
@@ -78,7 +82,7 @@ void InitProcess(void);
 void StartScheduler(void);
 void ProcessStart(TrapFrame *tf);
 Scheduler *GetScheduler(void);
-void yield(void);
+void Yield(void);
 
 /**
  * @brief       Switch context between two process, save old context to `old`,
@@ -89,3 +93,17 @@ void yield(void);
  * @return none
  */
 void ContextSwitch(uint64_t *old, uint64_t new);
+
+/**
+ * @brief       Add current process to wait list wih wait_id.
+ * 
+ * @param[in]   wait_id     - Current process wait id.
+ */
+void Sleep(int wait_id);
+
+/**
+ * @brief       Wakeup processes which match wait_id.
+ * 
+ * @param[in]   wait_id     - Wait id to wake up processes matching.
+ */
+void Wakeup(int wait_id);

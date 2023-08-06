@@ -63,6 +63,8 @@ typedef struct {
  */
 void InitIDT(void);
 
+uint64_t GetTicks(void);
+
 void Vector0(void);
 void Vector1(void);
 void Vector2(void);
