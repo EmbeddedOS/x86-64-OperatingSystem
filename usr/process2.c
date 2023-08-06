@@ -1,15 +1,15 @@
 #include <stdint.h>
 #include <stdio.h>
 
+int Sleep(int time);
+
 int main(void) 
 {
-    int64_t count = 0;
     while (1)
     {
-        if (count % 1000000 == 0) {
-            printf("Process 2\n");
-        }
-        count++;
+        printf("Process 2\n");
+        /* SLeep 2 second. */
+        Sleep(200);
     }
 
     return 0;
