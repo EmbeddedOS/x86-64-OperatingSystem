@@ -2,7 +2,7 @@ section .text
 global Write
 global Sleep
 global Exit
-global Wait
+global Waitu
 
 Write:
     ; 1. Allocate 24 bytes space on the stack for three arguments.
@@ -54,7 +54,7 @@ Exit:
     int 0x80
     ret
 
-Wait:
+Waitu:
     mov eax, 3              ; System call number.
     mov rdi, 0
     int 0x80

@@ -36,9 +36,9 @@ void InitProcess(void)
     Scheduler *scheduler = GetScheduler();
     HeadList *list = &scheduler->ready_proc_list;
 
-    uint64_t addr[2] = {0x20000, 0x30000};
+    uint64_t addr[3] = {0x20000, 0x30000, 0x40000};
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < 3; i++) {
         Process *proc = FindFreeProcessSlot();
         SetProcessEntry(proc, addr[i]);
         ListPushBack(list, (List *)proc);

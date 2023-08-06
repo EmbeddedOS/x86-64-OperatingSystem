@@ -134,6 +134,23 @@ LoadUser2:
     int 0x13                    ; Call the Disk Service.
     jc ReadError                ; Carry flag will be set if error.
 
+LoadUser3:
+    mov si, ReadPacket
+    mov word[si], 0x10          ; Packet size is 16 bytes.
+    mov word[si + 2], 0xA       ; We will load 10 sectors from the disk.
+    mov word[si + 4], 0x00      ; Memory offset.
+    mov word[si + 6], 0x4000    ; Memory segment. So, we will load the user
+                                ; code to physical memory at address: 0x4000 *
+                                ; 0x10 + 0x00 = 0x40000
+    mov dword[si + 8], 0x7E     ; We load from sector 127 from hard disk image
+    mov dword[si + 12], 0x00    ; to sector 137.
+
+    mov dl, [DriveID]           ; DriveID param.
+    mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
+    int 0x13                    ; Call the Disk Service.
+    jc ReadError                ; Carry flag will be set if error.
+
+
     ; 5. Get system memory map, let get first 20 bytes.
 GetMemoryInfoStart:
     mov eax, 0xE820         ; Configure param for GET SYSTEM MEMORY MAP service.
