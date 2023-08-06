@@ -8,11 +8,12 @@
 extern TSS TaskStateSegment; /* Extern from ASM. */
 static Process s_process_manager[MAXIMUM_NUMBER_OF_PROCESS];
 static int s_pid_num = 1;
+static Scheduler s_scheduler;
 
 /* Private function prototypes -----------------------------------------------*/
 
 static Process *FindFreeProcessSlot(void);
-static void SetProcessEntry(Process* proc);
+static void SetProcessEntry(Process* proc, uint64_t user_addr);
 
 /**
  * @brief   Set TaskStateSegment point to top of the process's kernel stack. So
@@ -23,27 +24,69 @@ static void SetProcessEntry(Process* proc);
  */
 static void SetTSS(Process *proc);
 
+static void Schedule(void);
+
+static void SwitchProcess(Process *prev, Process *new);
+
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
-    Process *proc = FindFreeProcessSlot();
-    ASSERT (proc == &s_process_manager[0]);
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->ready_proc_list;
 
-    SetProcessEntry(proc);
+    uint64_t addr[2] = {0x20000, 0x30000};
+
+    for (int i = 0; i < 2; i++) {
+        Process *proc = FindFreeProcessSlot();
+        SetProcessEntry(proc, addr[i]);
+        ListPushBack(list, (List *)proc);
+    }
 }
 
 void StartScheduler(void)
 {
-    /* Test switch to first process. */
+    Scheduler *scheduler = GetScheduler();
 
-    /* 1. Set TaskStateSegment point to it's kernel stack. */
-    SetTSS(&s_process_manager[0]);
+    /* 1. Get process from ready list. */
+    Process *proc = (Process *)ListPopFront(&scheduler->ready_proc_list);
 
-    /* 2. Switch to user virtual memory. */
-    SwitchVM(s_process_manager[0].page_map);
+    /* 2. Make process as running. */
+    proc->state = PROCESS_SLOT_RUNNING;
+    scheduler->current_proc = proc;
 
-    /* 3. Start user program. */
-    ProcessStart(s_process_manager[0].tf);
+    /* 3. Set TaskStateSegment point to it's kernel stack. */
+    SetTSS(proc);
+
+    /* 4. Switch to process virtual memory. */
+    SwitchVM(proc->page_map);
+
+    /* 5. Start process program. */
+    ProcessStart(proc->tf);
+}
+
+Scheduler *GetScheduler(void)
+{
+    return &s_scheduler;
+}
+
+void yield(void)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->ready_proc_list;
+
+    if (ListIsEmpty(list)) {
+        return;
+    }
+
+    /* Get current process, set it as ready, and push it to back of the ready
+     * list. */
+    proc = scheduler->current_proc;
+    proc->state = PROCESS_SLOT_READY;
+    ListPushBack(list, (List *)proc);
+
+    /* Process switch. */
+    Schedule();
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -62,7 +105,7 @@ static Process *FindFreeProcessSlot(void)
     return proc;
 }
 
-static void SetProcessEntry(Process* proc)
+static void SetProcessEntry(Process* proc, uint64_t user_addr)
 {
     uint64_t stack_top;
 
@@ -75,6 +118,14 @@ static void SetProcessEntry(Process* proc)
 
     memset((void *)proc->stack, 0, STACK_SIZE);
     stack_top = proc->stack + STACK_SIZE;
+
+    /* Because the process is not run until now, so it don't have the context.
+     * We make a empty context to it. That include 6 context registers, and
+     * return address. So, we make context point to `rsp` - 7 * 8. */
+    proc->context = stack_top - sizeof(TrapFrame) - 7*8;
+    /* We save the address of `TrapReturn` to rsp + 6. The next value of stack
+     * pointer will be return address. So we push `TrapReturn` to it. */
+    *(uint64_t *)(proc->context + 6*8) = (uint64_t)TrapReturn;
 
     /* We save stack frame at top of kernel stack. */
     proc->tf = (TrapFrame *)(stack_top - sizeof(TrapFrame));
@@ -91,8 +142,9 @@ static void SetProcessEntry(Process* proc)
     ASSERT(proc->page_map != 0);
 
     /* Map user memory (2MB) to the kernel virtual memory we just made. */
-    /* We use 0x200000 to test first process. */
-    ASSERT(SetupUVM(proc->page_map, (uint64_t)PHY_TO_VIR(0x20000), 6000));
+    ASSERT(SetupUVM(proc->page_map, (uint64_t)PHY_TO_VIR(user_addr), 512 * 10));
+
+    proc->state = PROCESS_SLOT_READY;
 }
 
 static void SetTSS(Process *proc)
@@ -100,4 +152,31 @@ static void SetTSS(Process *proc)
     /* We set TSS structure by assigning the top of the kernel stack to rsp0 in
      * the TaskStateSegment. */
     TaskStateSegment.rsp0 = proc->stack + STACK_SIZE;
+}
+
+static void Schedule(void)
+{
+    Process *prev_proc = NULL;
+    Process *current_proc = NULL;
+
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->ready_proc_list;
+    ASSERT(!ListIsEmpty(list));
+
+    prev_proc = scheduler->current_proc;
+
+    /* Get head ready process and make it as running. */
+    current_proc = (Process *)ListPopFront(list);
+    current_proc->state = PROCESS_SLOT_RUNNING;
+    scheduler->current_proc = current_proc;
+
+    /* Switch to new process. */
+    SwitchProcess(prev_proc, current_proc);
+}
+
+static void SwitchProcess(Process *prev, Process *new)
+{
+    SetTSS(new);
+    SwitchVM(new->page_map);
+    ContextSwitch(&prev->context, new->context);
 }

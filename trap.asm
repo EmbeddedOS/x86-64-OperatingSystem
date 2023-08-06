@@ -31,6 +31,8 @@ global LoadIDT
 global LoadCR3
 global ReadCR2
 global ProcessStart
+global TrapReturn
+global ContextSwitch
 
 Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push rax        ; purpose registers. Print character to debug. And call the
@@ -203,3 +205,23 @@ ReadCR2:
 ProcessStart:
     mov rsp, rdi        ; Set RSP point to process stack frame.
     jmp TrapReturn      ; After trap return, we we running in process code.
+
+ContextSwitch:
+    push rbx            ; Save old context.
+    push rbp
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov [rdi], rsp      ; Save old process's stack pointer.
+    mov rsp, rsi        ; Set kernel stack point to new context of new process.
+
+    pop r15             ; Retrieve old context.
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    pop rbx
+
+    ret

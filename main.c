@@ -14,7 +14,7 @@ void KMain(void)
     printk("Retrieve memory map:\n");
     RetrieveMemoryInfo();
     InitMemory();
-    InitProcess();
     InitSystemCall();
+    InitProcess();
     StartScheduler();
 }

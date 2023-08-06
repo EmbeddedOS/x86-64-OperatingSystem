@@ -2,6 +2,7 @@
 #include "assert.h"
 #include "printk.h"
 #include "syscall.h"
+#include "process.h"
 
 /* Private define ------------------------------------------------------------*/
 #define MAXIMUM_IRQ_NUMBER 256
@@ -78,10 +79,15 @@ static void InitIDTEntry(IDTEntry *entry, uint64_t address, uint8_t attribute)
 void InterruptHandler(TrapFrame *tf)
 {
     switch (tf->trapno) {
-    case 32:        /* Timer interrupt. */
+    case 32: {      /* Timer interrupt. */
         EOI();
-        break;
-    
+
+        /* If the handler is called when running in the user mode, we yield()
+         * to make current process give up the CPU resource, and choose another
+         * another process. */
+        yield();
+    }
+    break;
     case 39: {      /* Spurious interrupt. */
         uint8_t isr_value = ReadISR();
         if ((isr_value & (1<<7)) != 0) {
@@ -105,7 +111,6 @@ void InterruptHandler(TrapFrame *tf)
                 tf->rip);           /* Address of error instruction. */
         panic(msg);
     }
-
-        break;
+    break;
     }
 }

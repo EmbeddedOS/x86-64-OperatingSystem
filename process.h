@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <list.h>
+#include "common.h"
 #include "trap.h"
 #include "memory.h"
 
@@ -10,7 +12,9 @@
 /* Public type ---------------------------------------------------------------*/
 typedef enum  {
     PROCESS_SLOT_UNUSED = 0,
-    PROCESS_SLOT_INITIALIZED
+    PROCESS_SLOT_INITIALIZED,
+    PROCESS_SLOT_READY,
+    PROCESS_SLOT_RUNNING
 } ProcessState;
 
 
@@ -19,6 +23,7 @@ typedef enum  {
  *          essential data of the process. It is maintained in the kernel space,
  *          user program is not allowed to access it.
  *
+ * @property next       - Next process to run.
  * @property pid        - Process Identification number of a process.
  * @property state      - Current state of process
  * @property page_map   - Saves the address of page map level 4 table, when we
@@ -31,9 +36,11 @@ typedef enum  {
  * @property tf         - 
  */
 typedef struct {
+    List *next;
     int pid;
     ProcessState state;
     uint64_t page_map;
+    uint64_t context;
     uint64_t stack;
     TrapFrame *tf;
 } Process;
@@ -60,8 +67,25 @@ typedef struct {
     uint16_t iopb;
 } __attribute__ ((packed)) TSS;
 
+typedef struct {
+    Process *current_proc;
+    HeadList ready_proc_list;
+} Scheduler;
+
 /* Public function prototype -------------------------------------------------*/
 
 void InitProcess(void);
 void StartScheduler(void);
 void ProcessStart(TrapFrame *tf);
+Scheduler *GetScheduler(void);
+void yield(void);
+
+/**
+ * @brief       Switch context between two process, save old context to `old`,
+ *              And retrieve new context from `new`.
+ * 
+ * @param[in]   old   The address of context field in process.
+ * @param[in]   new   The context value in the next process.
+ * @return none
+ */
+void ContextSwitch(uint64_t *old, uint64_t new);

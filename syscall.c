@@ -54,7 +54,7 @@ static int SysWrite(int64_t *arg)
     int16_t file_descriptor = arg[0];
     char *buffer = (char *)arg[1];
     int32_t length = arg[2];
-
-    printk("User send: %d, %s, %d\n", file_descriptor, buffer, length);
+    printk(buffer);
+    // printk("User send: %d, %s, %d\n", file_descriptor, buffer, length);
     return length;
 }
