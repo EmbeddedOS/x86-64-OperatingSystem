@@ -1752,3 +1752,13 @@ Kernel mode ||
 
 - When we run `int` instruction, CPU will retrieve the corresponding descriptor in the IDT.
 - Then we enter kernel mode and this request is processed in the `InterruptHandler`. After it performs some checks of the request, it then gets to system call part and the write screen function will finally be called.
+
+### 44. Scheduling
+
+- We will add a scheduler in the process module.
+- After we initialize the processes, we call function `StartScheduler` to run first process, at this point, we running at user mode. So how do we force the process to give up the CPU resource and pick another thread to run?
+  - We have implemented timer interrupt which is configured to fire the interrupts every 10ms.
+  - In the timer timeout handler, we will check to see if this is timer interrupt. If it is timer interrupt, we will go to process module to do the context switch, and then the second process is selected.
+  - When we jump back to user mode, we will actually run the second process. After it runs for a period of time, 10ms in this case, the timer interrupt is fired and we will get to trap handler again. Choose the third process, and we get to user mode to run the program. When the time for this process is up, we will select the first process in the handler again.
+
+- In process module, we save runnable process in the linked list called ready list.
