@@ -100,7 +100,7 @@ LoadKernel:
 
 ; Load the user code to 0x20000 to test system call.
 ; TODO: using File system to load process runtime.
-LoadUser:
+LoadUser1:
     mov si, ReadPacket
     mov word[si], 0x10          ; Packet size is 16 bytes.
     mov word[si + 2], 0xA       ; We will load 10 sectors from the disk.
@@ -110,6 +110,24 @@ LoadUser:
                                 ; 0x10 + 0x00 = 0x20000
     mov dword[si + 8], 0x6A     ; We load from sector 107 from hard disk image
     mov dword[si + 12], 0x00    ; to sector 117.
+
+    mov dl, [DriveID]           ; DriveID param.
+    mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
+    int 0x13                    ; Call the Disk Service.
+    jc ReadError                ; Carry flag will be set if error.
+
+; Load the user code to 0x30000 to test system call.
+; TODO: using File system to load process runtime.
+LoadUser2:
+    mov si, ReadPacket
+    mov word[si], 0x10          ; Packet size is 16 bytes.
+    mov word[si + 2], 0xA       ; We will load 10 sectors from the disk.
+    mov word[si + 4], 0x00      ; Memory offset.
+    mov word[si + 6], 0x3000    ; Memory segment. So, we will load the user
+                                ; code to physical memory at address: 0x3000 *
+                                ; 0x10 + 0x00 = 0x30000
+    mov dword[si + 8], 0x74     ; We load from sector 117 from hard disk image
+    mov dword[si + 12], 0x00    ; to sector 127.
 
     mov dl, [DriveID]           ; DriveID param.
     mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
