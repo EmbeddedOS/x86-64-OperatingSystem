@@ -1,6 +1,8 @@
 section .text
 global Write
 global Sleep
+global Exit
+global Wait
 
 Write:
     ; 1. Allocate 24 bytes space on the stack for three arguments.
@@ -44,4 +46,16 @@ Sleep:
     ; 4. Restore the stack and return to the caller. Response from kernel is
     ; saved at `rax` register.
     add rsp, 0x08
+    ret
+
+Exit:
+    mov eax, 2              ; System call number.
+    mov rdi, 0
+    int 0x80
+    ret
+
+Wait:
+    mov eax, 3              ; System call number.
+    mov rdi, 0
+    int 0x80
     ret
