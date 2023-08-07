@@ -12,12 +12,14 @@ int main(void)
     while (1)
     {
         printf("Process 2\n");
-        /* SLeep 2 second. */
+        /* SLeep 1 second. */
         Sleep(100);
         count++;
 
         if (count == 10) {
-            printf("Exiting... \n");
+            printf("Emit exception by access to kernel code.\n");
+            char *p = (char *)0xFFFF800000300400;
+            *p = 1;
             break;
         }
     }
