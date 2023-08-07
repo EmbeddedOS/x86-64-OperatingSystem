@@ -22,6 +22,7 @@ global Vector17
 global Vector18
 global Vector19
 global Vector32
+global Vector33
 global Vector39
 global Syscall
 
@@ -33,6 +34,7 @@ global ReadCR2
 global ProcessStart
 global TrapReturn
 global ContextSwitch
+global InByte
 
 Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push rax        ; purpose registers. Print character to debug. And call the
@@ -167,6 +169,11 @@ Vector32:
     push 32
     jmp Trap
 
+Vector33:           ; Keyboard interrupt.
+    push 0
+    push 33
+    jmp Trap
+
 Vector39:
     push 0
     push 39
@@ -224,4 +231,9 @@ ContextSwitch:
     pop rbp
     pop rbx
 
+    ret
+
+InByte:
+    mov rdx, rdi
+    in al, dx
     ret

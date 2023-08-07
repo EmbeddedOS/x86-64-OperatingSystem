@@ -84,8 +84,14 @@ void Vector17(void);
 void Vector18(void);
 void Vector19(void);
 void Vector32(void);
+void Vector33(void);
 void Vector39(void);
 void Syscall(void);
+
+/**
+ * @brief       Call this to send end of interrupt, so we can re-fire interrupt
+ *              after that.
+ */
 void EOI(void);
 uint8_t ReadISR(void);
 void LoadIDT(IDTPointer *ptr);

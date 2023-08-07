@@ -3,6 +3,7 @@
 #include "printk.h"
 #include "syscall.h"
 #include "process.h"
+#include "keyboard.h"
 
 /* Private define ------------------------------------------------------------*/
 #define MAXIMUM_IRQ_NUMBER 256
@@ -53,7 +54,9 @@ void InitIDT(void)
     InitIDTEntry(&s_interrupt_entries[18], (uint64_t)Vector18, 0x8E);
     InitIDTEntry(&s_interrupt_entries[19], (uint64_t)Vector19, 0x8E);
     InitIDTEntry(&s_interrupt_entries[32], (uint64_t)Vector32, 0x8E);
+    InitIDTEntry(&s_interrupt_entries[33], (uint64_t)Vector33, 0x8E);
     InitIDTEntry(&s_interrupt_entries[39], (uint64_t)Vector39, 0x8E);
+    
     
     /* Init system call handler, DPL attribute is set to 3 instead of 0,
      * Because we will fire the interrupt in ring 3, so user can fire this
@@ -96,6 +99,11 @@ void InterruptHandler(TrapFrame *tf)
          * to make current process give up the CPU resource, and choose another
          * another process. */
         Yield();
+    }
+    break;
+    case 33: {      /* Keyboard interrupt. */
+        KeyboardHandler();
+        EOI();
     }
     break;
     case 39: {      /* Spurious interrupt. */

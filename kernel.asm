@@ -110,8 +110,8 @@ InitializePIC:
     out 0x21, al
     out 0xA1, al
 
-    mov al, 0b11111110  ; Masking all interrupts, except IRQ0 for the timer
-    out 0x21, al        ; interrupt we used.
+    mov al, 0b11111100  ; Masking all interrupts, except IRQ0 for the timer
+    out 0x21, al        ; interrupt we used and IRQ1 for keyboard.
     mov al, 0b11111111
     out 0xA1, al
 
