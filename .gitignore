@@ -4,3 +4,6 @@
 *.a
 kernel
 .vscode/
+usr/process1
+usr/process2
+usr/process3
