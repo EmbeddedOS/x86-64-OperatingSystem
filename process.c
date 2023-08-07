@@ -168,6 +168,7 @@ void Wait(void)
             kfree(proc->stack);
             FreeVM(proc->page_map);
             memset(proc, 0, sizeof(Process));
+            proc->state = PROCESS_SLOT_UNUSED;
         } else {
             /* Sleep if we don't have any killed process. */
             Sleep(INIT_PROCESS_WAIT_ID);
