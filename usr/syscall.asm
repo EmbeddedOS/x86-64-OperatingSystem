@@ -4,6 +4,7 @@ global Sleep
 global Exit
 global Waitu
 global Read
+global MemInfo
 
 Write:
     ; 1. Allocate 24 bytes space on the stack for three arguments.
@@ -82,4 +83,10 @@ Read:
     ; 4. Restore the stack and return to the caller. Response from kernel is
     ; saved at `rax` register.
     add rsp, 0x18
+    ret
+
+MemInfo:
+    mov eax, 5              ; System call number.
+    mov rdi, 0
+    int 0x80
     ret

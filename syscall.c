@@ -3,6 +3,7 @@
 #include "process.h"
 #include "keyboard.h"
 #include "syscall.h"
+#include "memory.h"
 #include "assert.h"
 #include "printk.h"
 
@@ -18,6 +19,7 @@ static int SysSleep(int64_t *arg);
 static int SysExit(int64_t *arg);
 static int SysWait(int64_t *arg);
 static int SysRead(int64_t *arg);
+static int SysMemInfo(int64_t *arg);
 
 static void RegisterSystemCall(uint16_t num, SYSTEM_CALL call);
 
@@ -29,6 +31,7 @@ void InitSystemCall(void)
     RegisterSystemCall(2, SysExit);
     RegisterSystemCall(3, SysWait);
     RegisterSystemCall(4, SysRead);
+    RegisterSystemCall(5, SysMemInfo);
 }
 
 void SystemCall(TrapFrame *tf)
@@ -115,11 +118,13 @@ static int SysRead(int64_t *arg)
         /* We just handle standard input. */
         for (int i = 0; i < length; i++) {
             buffer[i] = ReadKeyBuffer();
-            if (buffer[i] == '\n') {
-                length = i + 1;
-                break;
-            }
         }
     }
+
     return length;
+}
+
+static int SysMemInfo(int64_t *arg)
+{
+    return GetTotalMem();
 }

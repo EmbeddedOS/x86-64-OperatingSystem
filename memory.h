@@ -258,3 +258,5 @@ void kfree(uint64_t addr);
  *                      - NULL if failed.
  */
 void* kalloc(void);
+
+uint64_t GetTotalMem(void);

@@ -20,7 +20,8 @@
 static FreeMemoryRegion s_free_memory_regions[MEMORY_MAX_FREE_REGIONS];
 extern char l_kernel_end;
 static Page s_free_memory_page_head;
-static uint64_t s_free_memory_end_address;
+static uint64_t s_free_memory_end_address = 0;
+static uint64_t s_total_mem = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 static void FreeRegion(uint64_t v_start, uint64_t v_end);
@@ -89,7 +90,6 @@ static void FreePDPTable(uint64_t map);
 void RetrieveMemoryInfo(void)
 {
     int32_t count = *(int32_t *)MEMORY_REGION_COUNT_BASE_ADDR;
-    uint64_t total_mem = 0;
     E820 *mem_map = (E820 *)MEMORY_REGION_STRUCTURES_BASE_ADDR;
     int free_memory_region_count = 0;
 
@@ -104,7 +104,7 @@ void RetrieveMemoryInfo(void)
             s_free_memory_regions[free_memory_region_count].length =
             mem_map[i].length;
 
-            total_mem += mem_map[i].length;
+            s_total_mem += mem_map[i].length;
             free_memory_region_count++;
         }
 
@@ -113,7 +113,7 @@ void RetrieveMemoryInfo(void)
                 mem_map[i].length/1024,
                 (uint64_t)mem_map[i].type);
     }
-    printk("Total Free Memory: %uKB\n", total_mem/1024);
+    printk("Total Free Memory: %uKB\n", s_total_mem/1024);
 
     for (int i = 0; i < free_memory_region_count; i++)
     {
@@ -261,6 +261,11 @@ uint64_t SetupKVM(void)
     }
 
     return kernel_page_map;
+}
+
+uint64_t GetTotalMem(void)
+{
+    return s_total_mem;
 }
 
 /* Private function ----------------------------------------------------------*/
