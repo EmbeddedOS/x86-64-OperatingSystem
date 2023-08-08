@@ -7,7 +7,7 @@ bximage << EOF
 hd
 flat
 512
-10
+100
 boot.img
 EOF
 
