@@ -62,8 +62,6 @@ static int WriteUDecimalToBuffer(char *buffer, int pos, uint64_t integer);
  */
 static int WriteDecimalToBuffer(char *buffer, int pos, int64_t integer);
 
-static void WriteVGA(const char *buffer, int size);
-
 /* Public function -----------------------------------------------------------*/
 int printf(const char *format, ...)
 {

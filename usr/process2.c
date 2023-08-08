@@ -13,15 +13,15 @@ int main(void)
     {
        // printf("Process 2\n");
         /* SLeep 1 second. */
-        Sleep(100);
-        count++;
+        // Sleep(100);
+        // count++;
 
-        if (count == 10) {
-           // printf("Emit exception by access to kernel code.\n");
-            char *p = (char *)0xFFFF800000300400;
-            *p = 1;
-            break;
-        }
+        // if (count == 10) {
+        //    // printf("Emit exception by access to kernel code.\n");
+        //     char *p = (char *)0xFFFF800000300400;
+        //     *p = 1;
+        //     break;
+        // }
     }
 
     return 0;

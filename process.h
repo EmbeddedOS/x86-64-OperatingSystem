@@ -84,11 +84,13 @@
 #include "memory.h"
 
 /* Public define -------------------------------------------------------------*/
-#define STACK_SIZE                      PAGE_SIZE    /* 2MB. */
-#define MAXIMUM_NUMBER_OF_PROCESS       10
-#define USER_STACK_START                (USER_VIRTUAL_ADDRESS_BASE + STACK_SIZE)
-#define NORMAL_PROCESS_WAIT_ID          -1
-#define INIT_PROCESS_WAIT_ID            1
+#define STACK_SIZE                          PAGE_SIZE    /* 2MB. */
+#define MAXIMUM_NUMBER_OF_PROCESS           10
+#define USER_STACK_START                    (USER_VIRTUAL_ADDRESS_BASE \
+                                            + STACK_SIZE)
+#define NORMAL_PROCESS_WAIT_ID              -1
+#define INIT_PROCESS_WAIT_ID                1
+#define WAITING_KEYBOARD_PROCESS_WAIT_ID    -2
 
 /* Public type ---------------------------------------------------------------*/
 typedef enum  {

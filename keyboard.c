@@ -8,6 +8,19 @@
 #define CAPS_LOCK               (1 << 2)
 
 #define SENT_SCAN_CODE_PORT     0x60
+
+/* Private type --------------------------------------------------------------*/
+/**
+ * @brief This structure manage the read and write operation of key buffer.
+ * 
+ */
+static struct KeyboardBuffer {
+    char buffer[500];       /* Circular queue. */
+    int front;
+    int end;
+    int size;
+} s_keyboard_controller = {{0}, 0, 0, 500}; 
+
 /* Private variable ----------------------------------------------------------*/
 static unsigned char s_shift_code[256] = {
     [0x2A] = SHIFT,
@@ -71,14 +84,34 @@ static char s_shift_key_map[256] = {
  */
 static char ReadCharacter(void);
 
+static void WriteKeyBuffer(char ch);
+
 /* Public function -----------------------------------------------------------*/
 void KeyboardHandler(void)
 {
     char ch[2] = {0};
     ch[0] = ReadCharacter();
     if (ch[0] > 0) {
-        printk("%s", ch);
+        WriteKeyBuffer(ch[0]);
+        /* Wakeup the process waiting for the keyboard. */
+        Wakeup(WAITING_KEYBOARD_PROCESS_WAIT_ID);
     }
+}
+
+char ReadKeyBuffer(void)
+{
+    int front = s_keyboard_controller.front;
+
+    if (front == s_keyboard_controller.end) {
+        /* When a program wants to read a key, and there is no key in the buffer
+         * , we will put it into sleep. */
+        Sleep(WAITING_KEYBOARD_PROCESS_WAIT_ID);
+    }
+
+    s_keyboard_controller.front = (s_keyboard_controller.front + 1)
+                                    % s_keyboard_controller.size;
+
+    return s_keyboard_controller.buffer[front];
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -133,4 +166,19 @@ static char ReadCharacter(void)
     }
 
     return c;
+}
+
+static void WriteKeyBuffer(char ch)
+{
+    int front = s_keyboard_controller.front;
+    int end = s_keyboard_controller.end;
+    int size = s_keyboard_controller.size;
+
+    /* Return if buffer is full. */
+    if ((end + 1) % size == front) {
+        return;
+    }
+
+    s_keyboard_controller.buffer[end++] = ch;
+    s_keyboard_controller.end = end % size;
 }

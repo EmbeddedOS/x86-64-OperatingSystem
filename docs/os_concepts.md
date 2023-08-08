@@ -1789,3 +1789,5 @@ Kernel mode ||
 - The keyboard is connected to the PIC using IRQ1. So the keyboard uses interrupt signal 1. We should enable it in the PIC chip. So that the keyboard interrupt will be sent to the CPU.
 
 - generally, the keyboard should be initialized before we use it. Bn our system, we assume that the keyboard is actually initialized before kernel running.
+
+- Instead of just printing characters on the screen. We have a working keyboard handler to receive the key characters and all we need to do is put these characters in the buffer.
