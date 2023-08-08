@@ -289,7 +289,22 @@ static void WriteVGA(const char *buffer, int size)
         if (buffer[i] == '\n') {
             column = 0;
             row++;
-        } else {
+        } else if (buffer[i] == '\b') {
+            /* Handle backspace to delete character. */
+            if(column == 0 && row == 0) {
+                continue;
+            }
+
+            if (column == 0) {
+                row --;
+                column = 80;
+            }
+
+            column -= 1;
+            screen_buffer.buffer[column * 2 + row * LINE_SIZE] = 0;
+            screen_buffer.buffer[column * 2 + row * LINE_SIZE + 1] = 0;
+
+        }else {
             screen_buffer.buffer[column * 2 + row * LINE_SIZE] = buffer[i];
             screen_buffer.buffer[column * 2 + row * LINE_SIZE + 1] = color;
 
