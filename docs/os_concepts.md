@@ -1795,3 +1795,17 @@ Kernel mode ||
 ### 50. Interact with kernel using console
 
 - We will write a console where we can issue a command and get the result from kernel.
+
+## 10. File system
+
+### 51. Introduction
+
+- The file system we will use in our system is FAT16. The reason we choose that because FAT16 is easy to implement read, write operations. Also the OS we use nowadays such as Windows, Linux and MAC can recognize FAT16 system and read and write data into the system, which makes the interaction with it more easily.
+
+- For example, we can build a program and drag and drop it to the FAT16 image, and we can boot the image, find the program and run the program.
+
+- If we want to read a text from the file, we can achieve it by defining a string with the characters we want in the assembly code and assemble it to the binary file. Copy the file to the image and read data from file the data we read from the file will be the characters we want.
+
+- Normally, the files are stored in the disk. The OS reads and writes files data into the disk. Unlike the data in the main memory, the data in the disk stays unchanged after we shutdown the computer.
+
+- But accessing the disk requires us to write a disk driver, which is not an easy task to do. Before that, when we are in the real mode, we load the loader file and kernel file using BIOS service, and now we read the disk into memory using the same method, which means the entire file system is in the memory when our system runs.
