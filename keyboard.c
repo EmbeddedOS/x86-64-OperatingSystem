@@ -3,8 +3,10 @@
 #include "process.h"
 /* Private define ------------------------------------------------------------*/
 
-#define SHIFT
-#define CAPS_LOCK
+#define E0_SIGN                 (1 << 0)
+#define SHIFT                   (1 << 1)
+#define CAPS_LOCK               (1 << 2)
+
 #define SENT_SCAN_CODE_PORT     0x60
 /* Private variable ----------------------------------------------------------*/
 static unsigned char s_shift_code[256] = {
@@ -18,6 +20,7 @@ static unsigned char s_lock_code[256] = {
     [0x3A] = CAPS_LOCK
 };
 
+static unsigned int s_flag = 0;
 /**
  * @brief   These are the characters we have in the keyboard. The data sent from
  *          keyboard to the handler is not the data here. The data is called
@@ -71,7 +74,11 @@ static char ReadCharacter(void);
 /* Public function -----------------------------------------------------------*/
 void KeyboardHandler(void)
 {
-
+    char ch[2] = {0};
+    ch[0] = ReadCharacter();
+    if (ch[0] > 0) {
+        printk("%s", ch);
+    }
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -88,20 +95,42 @@ static char ReadCharacter(void)
      * check scan code start with 0xE0, we will add E0_SIGN to the flag and
      * return 0 meaning key not valid. */
     if (scan_code == 0xE0) {
-        flag |= E0_SIGN;
+        s_flag |= E0_SIGN;
         return 0;
     }
 
     /* If the key not equal 0xE0 but 0xE0 flag is set, mean the last scan is
      * 0xE0, so we clear flag and return invalid. */
-    if (flag & E0_SIGN) {
-        flag &= ~E0_SIGN;
+    if (s_flag & E0_SIGN) {
+        s_flag &= ~E0_SIGN;
         return 0;
     }
 
     /* Handling up key. */
     if (scan_code & 0x80) {
-        flag &= ~(s_shift_code[scan_code]);
+        s_flag &= ~(s_shift_code[scan_code]);
         return 0;
     }
+
+    s_flag |= s_shift_code[scan_code];
+    s_flag ^= s_lock_code[scan_code];
+
+    /* Handle shift + another keys. */
+    if (s_flag & SHIFT) {
+        c = s_shift_key_map[scan_code];
+    } else {
+        c = s_key_map[scan_code];
+    }
+
+    /* Handle caps lock + another keys. */
+    if (s_flag & CAPS_LOCK) {
+        if (c >= 'a' && c <= 'z') {
+            c -= 32;
+        } else if (c >= 'A' && c <= 'Z')
+        {
+            c+= 32;
+        }
+    }
+
+    return c;
 }

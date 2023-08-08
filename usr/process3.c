@@ -7,7 +7,7 @@ int main(void)
     while (1)
     {
         if (count % 100000000 == 0) {
-            printf("Process 3\n");
+          //  printf("Process 3\n");
         }
         count++;
     }

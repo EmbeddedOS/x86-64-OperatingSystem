@@ -10,13 +10,16 @@ all:
 	gcc $(CFLAGS) assert.c -o assert.o
 	gcc $(CFLAGS) memory.c -o memory.o
 	gcc $(CFLAGS) process.c -o process.o
+	gcc $(CFLAGS) keyboard.c -o keyboard.o
 	gcc $(CFLAGS) syscall.c -o syscall.o
 
-	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o printk.o assert.o memory.o process.o syscall.o libc/libc.a
+	ld -nostdlib -T linker.ld -o kernel kernel.o main.o trap.o trapasm.o printk.o assert.o memory.o process.o syscall.o keyboard.o libc/libc.a
 	objcopy -O binary kernel kernel.bin
 	dd if=boot.bin of=boot.img bs=512 count=1 conv=notrunc
 	dd if=loader.bin of=boot.img bs=512 count=5 seek=1 conv=notrunc
 	dd if=kernel.bin of=boot.img bs=512 count=100 seek=6 conv=notrunc
+
+	make -C usr/
 	dd if=usr/process1.bin of=boot.img bs=512 count=10 seek=106 conv=notrunc
 	dd if=usr/process2.bin of=boot.img bs=512 count=10 seek=116 conv=notrunc
 	dd if=usr/process3.bin of=boot.img bs=512 count=10 seek=126 conv=notrunc

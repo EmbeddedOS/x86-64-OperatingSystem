@@ -1,6 +1,7 @@
 #pragma once
+#include <stdint.h>
 
 /* Public function prototype -------------------------------------------------*/
 void KeyboardHandler(void);
 
-void InByte(uint16_t port);
+unsigned char InByte(uint16_t port);
