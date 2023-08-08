@@ -9,7 +9,6 @@ int main(void)
     while (1)
     {
         if (count % 100000000 == 0) {
-         //   printf("Process 1\n");
             Waitu();
         }
         count++;

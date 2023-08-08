@@ -1791,3 +1791,7 @@ Kernel mode ||
 - generally, the keyboard should be initialized before we use it. Bn our system, we assume that the keyboard is actually initialized before kernel running.
 
 - Instead of just printing characters on the screen. We have a working keyboard handler to receive the key characters and all we need to do is put these characters in the buffer.
+
+### 50. Interact with kernel using console
+
+- We will write a console where we can issue a command and get the result from kernel.

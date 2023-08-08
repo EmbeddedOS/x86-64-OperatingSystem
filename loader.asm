@@ -134,7 +134,7 @@ LoadUser2:
     int 0x13                    ; Call the Disk Service.
     jc ReadError                ; Carry flag will be set if error.
 
-LoadUser3:
+LoadShell:
     mov si, ReadPacket
     mov word[si], 0x10          ; Packet size is 16 bytes.
     mov word[si + 2], 0xA       ; We will load 10 sectors from the disk.
@@ -149,7 +149,6 @@ LoadUser3:
     mov ah, 0x42                ; Use INT 13 Extensions - EXTENDED READ service.
     int 0x13                    ; Call the Disk Service.
     jc ReadError                ; Carry flag will be set if error.
-
 
     ; 5. Get system memory map, let get first 20 bytes.
 GetMemoryInfoStart:

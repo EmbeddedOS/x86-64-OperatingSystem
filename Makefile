@@ -22,8 +22,7 @@ all:
 	make -C usr/
 	dd if=usr/process1.bin of=boot.img bs=512 count=10 seek=106 conv=notrunc
 	dd if=usr/process2.bin of=boot.img bs=512 count=10 seek=116 conv=notrunc
-	dd if=usr/process3.bin of=boot.img bs=512 count=10 seek=126 conv=notrunc
-
+	dd if=usr/shell.bin of=boot.img bs=512 count=10 seek=126 conv=notrunc
 
 clean:
 	rm *.bin *.img
