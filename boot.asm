@@ -23,6 +23,43 @@
 ;      |                   |           \/
 ;      |-------------------| 0
 ;
+; About the file system, We use FAT16 File System, The 16-bit part describes the
+; way units are allocated on the drive. The FAT16 file system uses a 16-bit
+; number to identify each allocation unit (called cluster), and this gives it a
+; total of 65.536 clusters. The size of each cluster is defined in the boot
+; sector of the volume (volume = partition). The File System ID number usually
+; associated with FAT16 volumes are 04h and 06h. The first is used on volumes
+; with less than 65536 sectors (typical this is on drives less than 32 Mb in
+; size), and the latter one is used on volumes with more than 65536 sectors.
+;
+; The FAT16 file system structure contains the following regions:
+; + Reserved Region (incl. Boot Sector).
+; + File Allocation Table (FAT).
+; + Root Directory.
+; + Data Region.
+;
+; The first sector (boot sector) contain information which is used to calculate
+; the sizes and locations of the other regions. The boot sector also contain
+; code to boot the operating system installed on the volume. The DATA REGION is
+; split up into logical blocks called clusters. Each of these clusters has an
+; accompanying entry in the FAT REGION. The cluster specific entry can either
+; contain a value of the next cluster which contain data from the file, or a so
+; called End-of-file value which means that there are no more clusters which
+; contain data from the file.
+; The ROOT DIRECTORY and its sub-directories contain filename, dates, attribute
+; flags and starting cluster information about the filesystem objects.
+; 
+; The first sector in the RESERVED REGION is the boot sector. Though this sector
+; is typical 512 bytes in can be longer depending on the media. The boot sector
+; typical start with a 3 byte jump instruction to where the bootstrap code is
+; stored, followed by an 8 byte long string set by the creating operating
+; system. This is followed by the BIOS Parameter Block, and then by an Extended
+; BIOS Parameter Block. Finally the boot sector contain boot code and a
+; signature.
+; 
+; In the RESERVED REGION we will store all kernel code (boot, loader, kernel,
+; etc).
+; 
 ; The Boot Sector structure:
 ; |   Part    |Offset|Size|                     Description                    |
 ; |-----------|------|----|----------------------------------------------------|
@@ -61,7 +98,7 @@
 ; |           |      |    | + FB       ?                    ?                  |
 ; |           |      |    | + FC    180 KB     5.25-inch, 1-sided, 9-sector    |
 ; |           |      |    | + FD    360 KB     5.25-inch, 2-sided, 9-sector    |
-; |           |      |    | + FE    160 KB	   5.25-inch, 1-sided, 8-sector    |
+; |           |      |    | + FE    160 KB     5.25-inch, 1-sided, 8-sector    |
 ; |           |      |    | + FF    320 KB     5.25-inch, 2-sided, 9-sector    |
 ; |           |0x0016| 2  | Sector per FAT. This is the number of sectors      |
 ; |           |      |    | occupied by one copy of the FAT.                   |
@@ -104,9 +141,6 @@
 ; |-----------|------|----|----------------------------------------------------|
 
 
-
-
-
 [BITS 16]
 [ORG 0x7C00]    ; The boot code start at address 0x7C00 and ascending.
 
@@ -118,7 +152,7 @@ nop
 OEMIdetifier db     'LARVAOS '
 BytesPerSector      dw 0x200
 SectorsPerCluster   db 0x80
-ReservedSectors     dw 200      ; 200 sector for our kernel.
+ReservedSectors     dw 200      ; 200 reversed sector for our kernel code.
 FATcopies           db 0x02
 RootDirEntries      dw 0x40
 NumSectors          dw 0x00
