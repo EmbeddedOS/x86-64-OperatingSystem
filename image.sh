@@ -11,6 +11,8 @@ flat
 boot.img
 EOF
 
+exit 0
+
 # If use bochs to simulate, we need to make bochsrc file.
 bochs << EOF
 3

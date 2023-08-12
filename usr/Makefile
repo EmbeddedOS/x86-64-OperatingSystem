@@ -20,3 +20,6 @@ all:
 
 	ld -nostdlib -T linker.ld -o shell start.o shell.o lib.a ../libc/libc.a
 	objcopy -O binary shell shell.bin
+
+clean:
+	rm -f *.bin *.img *.o

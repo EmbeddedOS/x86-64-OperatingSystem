@@ -2,7 +2,7 @@
 *.bin
 *.o
 *.a
-kernel
+kernel/kernel
 .vscode/
 usr/process1
 usr/process2
