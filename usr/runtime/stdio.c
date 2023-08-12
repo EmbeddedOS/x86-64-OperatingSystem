@@ -1,7 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdarg.h>
-#include "stdio.h"
+#include <stdio.h>
 
 int Write(int fd, char *buf, size_t count);
 

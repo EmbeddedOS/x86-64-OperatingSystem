@@ -3,4 +3,4 @@ all:
 	nasm -f bin -o loader.bin loader.asm
 
 clean:
-	rm -f *.bin *.img *.o
+	rm -f *.bin *.img *.o *.a

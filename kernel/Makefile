@@ -30,4 +30,4 @@ all:
 	objcopy -O binary kernel kernel.bin
 
 clean:
-	rm -f *.bin *.img *.o
+	rm -f *.bin *.img *.o *.a kernel
