@@ -2,9 +2,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdio.h>
-
-int Write(int fd, char *buf, size_t count);
-
+#include <unistd.h>
 
 /* Private define ------------------------------------------------------------*/
 #define PRINT_MAX_BUFFER_SIZE       1024
@@ -119,7 +117,7 @@ int printf(const char *format, ...)
         }
     }
 
-    buffer_size = Write(1, buffer, buffer_size);
+    buffer_size = write(1, buffer, buffer_size);
 
     va_end(args);
 

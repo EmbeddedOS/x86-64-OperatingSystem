@@ -49,7 +49,6 @@ void SystemCall(TrapFrame *tf)
         tf->rax = -1;
         return;
     }
-
     ASSERT(s_syscall_table[syscall_number] != NULL);
     tf->rax = s_syscall_table[syscall_number](arg);
 }
@@ -113,7 +112,6 @@ static int SysRead(int64_t *arg)
 
     char *buffer = (char *)arg[1];
     int32_t length = arg[2];
-
     if (file_descriptor == 0) {
         /* We just handle standard input. */
         for (int i = 0; i < length; i++) {

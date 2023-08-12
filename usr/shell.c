@@ -1,12 +1,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef void (*CmdFunc)(void);
 
 static CmdFunc s_cmd_list[10];
 
-int Read(int fd, char *buf, size_t count);
 uint64_t MemInfo(void);
 
 static int ReadCmd(char *buffer);
@@ -44,7 +44,7 @@ static int ReadCmd(char *buffer)
     char c[2] = {0};
     int buffer_size = 0;
     while(1) {
-        Read(0, c, 1);
+        read(0, c, 1);
         if (c[0] == '\n' || buffer_size >= 80) {
             /* End of line or line down. */
             printf("%s", c);
