@@ -5,7 +5,7 @@ An Operating System based on x86-64 architecture.
 ## 1. Make a blank hard disk image
 
 - Before building our OS and make final image, we need a blank hard disk image, We will use `bximage` to make it with:
-  - Size 10 megabytes.
+  - Size 100 megabytes.
   - Sector size is 512 bytes.
   - Kind of image is `flat`.
 
