@@ -10,7 +10,7 @@ all:
 	dd if=usr/process1.bin of=boot.img bs=512 count=10 seek=106 conv=notrunc
 	dd if=usr/process2.bin of=boot.img bs=512 count=10 seek=116 conv=notrunc
 	dd if=usr/shell.bin of=boot.img bs=512 count=10 seek=126 conv=notrunc
-	dd if=/dev/zero of=boot.img bs=512 count=$$(expr 204800 - 127) seek=127 conv=notrunc
+	dd if=/dev/zero of=boot.img bs=512 count=$$(expr 204800 - 136) seek=136 conv=notrunc
 image:
 	image.sh
 
