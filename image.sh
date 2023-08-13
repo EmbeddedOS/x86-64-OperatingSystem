@@ -1,7 +1,7 @@
 #!/bin/bash
 rm boot.img bochsrc
 
-# Create a hard disk image with size 10MB.
+# Create a hard disk image with size 100MB.
 bximage << EOF
 1
 hd
