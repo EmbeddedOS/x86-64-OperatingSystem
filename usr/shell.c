@@ -85,5 +85,5 @@ static void ExecuteCmd(int cmd)
 
 static void TotalMemCmd(void)
 {
-    printf("Total memory is %dMB\n", MemInfo());
+    printf("Total memory is %dMB\n", mem());
 }

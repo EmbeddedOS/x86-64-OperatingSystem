@@ -1,8 +1,8 @@
 section .text
 global Start
 extern main
-extern Exit
+extern exit
 Start:
     call main
-    call Exit
+    call exit
     jmp $

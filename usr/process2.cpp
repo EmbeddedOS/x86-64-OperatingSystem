@@ -2,14 +2,15 @@
 #include <stdio.h>
 
 void Exit(void);
-
-int Sleep(int time);
+class Test {
+    int test;
+};
 
 int main(void) 
 {
     while (1)
     {
     }
-
+    Test t;
     return 0;
 }
