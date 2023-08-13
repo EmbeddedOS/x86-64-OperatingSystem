@@ -49,6 +49,10 @@
 ; The ROOT DIRECTORY and its sub-directories contain filename, dates, attribute
 ; flags and starting cluster information about the filesystem objects.
 ; 
+; The RESERVED REGION will start from the sector that contains BIOS Prameter
+; Block until value of `Reserved sectors`. In our image, it start from first
+; sector.
+;
 ; The first sector in the RESERVED REGION is the boot sector. Though this sector
 ; is typical 512 bytes in can be longer depending on the media. The boot sector
 ; typical start with a 3 byte jump instruction to where the bootstrap code is
@@ -139,7 +143,22 @@
 ; |-----------|------|----|----------------------------------------------------|
 ; | Signature |0x00FE| 2  | Boot sector signature. This is the AA55h signature.|
 ; |-----------|------|----|----------------------------------------------------|
-
+;
+; This is our image structure 100MB (0x00000000->0x06400000):
+;    Address|        FAT 16   |SECTOR|           Description                   |
+; 0x00000000| BPB REGION      |  1   | Boot sector.                            |
+; 0x00000200| RESERVED REGION | 200  | Our kernel code.                        |
+; 0x00019000| FAT REGION      | 400  | FAT.                                    |
+; 0x0004B000| ROOT DIRECTORY  |      | Contain directory entries.              |
+; ..........|                 |      |                                         |
+; ..........| DATA REGION     |      |                                         |
+; ..........|                 |      |                                         |
+; 0x06400000|                 |      |                                         |
+;
+; The ROOT DIRECTORY REGION size depends on number of entries, each entry take
+; 32 bytes. And with start cluster number in each entry structure, and if data
+; of entry is large than cluster size we can use FAT table to get all clusters
+; which data lie on.
 
 [BITS 16]
 [ORG 0x7C00]    ; The boot code start at address 0x7C00 and ascending.
@@ -151,17 +170,18 @@ nop
 ; Region 2: BIOS Parameter Block.
 OEMIdetifier db     'LARVAOS '
 BytesPerSector      dw 0x200
-SectorsPerCluster   db 0x80
-ReservedSectors     dw 200      ; 200 reversed sector for our kernel code.
+SectorsPerCluster   db 0x4      ; Each cluster is 2KB.
+ReservedSectors     dw 0xC8     ; We reverse first 200 sectors for our kernel.
+                                ; So, the FAT REGION will start at sector 201.
 FATcopies           db 0x02
-RootDirEntries      dw 0x40
+RootDirEntries      dw 0x200
 NumSectors          dw 0x00
 MediaType           db 0xF8
-SectorsPerFAT       dw 0x100
-SectorsPerTrack     dw 0x20
-NumberOfHeads       dw 0x40
+SectorsPerFAT       dw 0xC8
+SectorsPerTrack     dw 0x3F
+NumberOfHeads       dw 0x10
 HiddenSectors       dd 0x00
-SectorsBig          dd 0x773594
+SectorsBig          dd 0x31F11  ; 100MB for our image.
 
 ; Region 3: Extended BIOS Parameter Block.
 DriveNumber             db 0x80
@@ -238,21 +258,22 @@ MessageLen:         equ $-Message
 ReadPacket:         times 16 db 0
 
 ; Clear memory from current address to address at byte 446th (0x1BE).
-times (0x1BE-($-$$)) db 0
+;times (0x1BE-($-$$)) db 0
+times (0x1FE-($-$$)) db 0
 
 ; End of boot sector, we need 16 * 4 = 64 bytes for 4 partition entries. Some
 ; BIOS will try to find the valid partition entries. We want the BIOS treat our
 ; image as a hard disk and boot from them, so we need to define these entries.
-; The first  partition entry:
-db 0x80                     ; Boot indicator, 0x80 means boot-able partion.
-db 1, 1, 0                  ; Starting of CHS value (Cylinder, Head, Sector).
-db 0x06                     ; Type of sector.
-db 0x0F, 0x3F, 0xCA         ; Ending of CHS value (Cylinder, Head, Sector).
-dd 0x3F                     ; Starting sector.
-dd 0x31F11                  ; Size of our disk: 10MB.
+; The first partition entry:
+;db 0x80                     ; Boot indicator, 0x80 means boot-able partion.
+;db 1, 1, 0                  ; Starting of CHS value (Cylinder, Head, Sector).
+;db 0x06                     ; Type of sector.
+;db 0x0F, 0x3F, 0xCA         ; Ending of CHS value (Cylinder, Head, Sector).
+;dd 0x3F                     ; Starting sector.
+;dd 0x31F11                  ; Size of our disk: 10MB.
 
 ; Other entries are set to 0.
-times (16*3) db 0
+;times (16*3) db 0
 
 ; Region 5: Boot sector signature.
 db 0x55

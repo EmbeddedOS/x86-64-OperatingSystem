@@ -1809,3 +1809,78 @@ Kernel mode ||
 - Normally, the files are stored in the disk. The OS reads and writes files data into the disk. Unlike the data in the main memory, the data in the disk stays unchanged after we shutdown the computer.
 
 - But accessing the disk requires us to write a disk driver, which is not an easy task to do. Before that, when we are in the real mode, we load the loader file and kernel file using BIOS service, and now we read the disk into memory using the same method, which means the entire file system is in the memory when our system runs.
+
+### 56. FAT16 structure
+
+- General structure of FAT16 format:
+
+    | BIOS Parameter BLock          |
+    | File Allocation Table (FAT)   |
+    | Root Directory Section        |
+    | Data Section                  |
+
+- We have BPB Bios param block, file allocation tables, root directory and data sections.
+- The Bios Parameter block includes information such as bytes per sector, sectors per cluster, total sectors.
+
+- The file allocation table is used to locate the clusters.
+- In the FAT16 system, the cluster is the basic allocation unit which is a set of *consecutive sectors*.
+- The sectors per cluster in the BPB will give us this info.
+
+- The file allocation table (FAT) contains the chains of links for a file.
+    |1| |2| |3| |4| |...| |end|
+  - That is, the value in the table indicates the next cluster number. Then you use that value as an index to find the value in the table which will give you the next cluster number.
+  - To find all the clusters of a file, you continue the process until you reach the end of file.
+  - The number of the file allocation tables we have in the image usually 2. We can get this information in the BIOS Parameter Block as well.
+
+- The next section is root directory which follows the file allocation tables. We can calculate the size of root directory with the info in BIOS parameter block.
+
+- In the root directory section, we have root directory entries with each one being 32 bytes. And these entries represent the files we have in the root directory of the fat16 partition. If we have files and folders in the root directory, we will see them stored as directory entries here.
+
+- The data section stores the data of the files and folders. If we have sub-folders, the files and folders within the sub-folders will be stored as directory entries in the data section. So the root directory section, as its name implies, stores the files and folders in the root directory.
+
+- We will inspect the fat16 image so that we can see how to find a file manually.
+
+- The FAT start start after REVERSED REGION, in our image, we spent first 200 sectors for kernel code, So the FAT REGION will start from sector 201.
+
+- We use 16 bit value for the cluster number, **and note that the first two value are reserved.**
+
+- To calculate start of Root Directory Section, we need to know start of FAT and size of FAT. We have two FAT (`FATcopies           db 0x02`) and each table occupies `0xC8` sectors (`SectorsPerFAT       dw 0xC8`). So the address of `Root Directory Section = start of FAT + 2 * 0xC8 = 200 * 2 + 200 = 600 * 512 = 0x4B000`
+- The root directory should be start here.
+- Each entries in root directory take 32 bytes.
+- Root Directory entry structure:
+
+|offset|size|   field                                |
+|------|----|----------------------------------------|
+| 0    | 8  | file name                              |
+| 8    | 3  | extension name                         |
+| 0xB  | 1  | attribute                              |
+| 0xC  | 1  | reserved                               |
+| 0xD  | 1  | creation time tenths of a sec          |
+| 0xE  | 2  | creation time                          |
+| 0x10 | 2  | creation date                          |
+| 0x12 | 2  | last access                            |
+| 0x14 | 2  | data starting cluster higher address   |
+| 0x16 | 2  | last modify time                       |
+| 0x18 | 2  | last modify date                       |
+| 0x1a | 2  | data starting cluster lower address    |
+| 0x1c | 4  | file size                              |
+
+- With data starting cluster lower address we can calculate where is the data is put on.
+- for example: we have data starting cluster lower address = 3
+  - The data section follows the root directory section. We have calculated the address is `0x4B000` for example.
+  - We have 512 entries in the BIOS parameter block: 512 * 32
+  - Start of data section = 512 * 32 + 0x4B000 = 0x4F000
+  - **Note that the starting cluster number for the data section is 2**. So we need subtract to 2.
+
+  - Data of file at cluster 3 (size of cluster is 2kb) = 0x4F000 + (3 - 2) * 2048 = 0x4F800
+  - If the data is large than 2KB we need to check next cluster using FAT table.
+  - Starting cluster number is 3, we use 3 as an index to locate the item in the Table.
+  - **Note that the first two value of FAT are reserved (2 * 2 bytes).**
+  - At the FAT we use the index 3, we get 04, read 04 we have 05, and so on until we have 0xFFFF as end of file.
+    00 00 00 00 00 00 04 00 05 00 06 00 07 00 FF FF
+
+  - Now we collect all the clusters for the file data: 3, 4, 5, 6, 7 and all data is stored in clusters.
+
+- So we call get all data with formula: `(start_of_data_section + (cluster_number - 2) * cluster_size)`
+
+- As for the sub-folders, the data of sub-folders is the 32 byte directory entries and but they are stored in the data section.
