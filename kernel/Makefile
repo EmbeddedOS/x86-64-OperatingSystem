@@ -13,6 +13,8 @@ all:
 	gcc $(CFLAGS) $(INC) process.c -o process.o
 	gcc $(CFLAGS) $(INC) keyboard.c -o keyboard.o
 	gcc $(CFLAGS) $(INC) syscall.c -o syscall.o
+	gcc $(CFLAGS) $(INC) file.c -o file.o
+	gcc $(CFLAGS) $(INC) disk.c -o disk.o
 
 	ld $(LDFLAGS) -o kernel 	\
 					kernel.o 	\
@@ -25,6 +27,8 @@ all:
 					process.o 	\
 					syscall.o 	\
 					keyboard.o  \
+					file.o		\
+					disk.o		\
 					$(LIBC)
 
 	objcopy -O binary kernel kernel.bin

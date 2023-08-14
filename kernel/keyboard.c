@@ -1,6 +1,7 @@
 #include "keyboard.h"
 #include "printk.h"
 #include "process.h"
+#include "io.h"
 /* Private define ------------------------------------------------------------*/
 
 #define E0_SIGN                 (1 << 0)

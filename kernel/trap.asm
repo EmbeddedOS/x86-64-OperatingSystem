@@ -35,6 +35,9 @@ global ProcessStart
 global TrapReturn
 global ContextSwitch
 global InByte
+global InWord
+global OutByte
+global OutWord
 
 Trap:               ; Trap procedure: Save the CPU state by pushing the general
     push rax        ; purpose registers. Print character to debug. And call the
@@ -236,4 +239,21 @@ ContextSwitch:
 InByte:
     mov rdx, rdi
     in al, dx
+    ret
+
+InWord:
+    mov rdx, rdi
+    in ax, dx
+    ret
+
+OutByte:
+    mov rdx, rdi
+    mov rax, rsi
+    out dx, al
+    ret
+
+OutWord:
+    mov rdx, rdi
+    mov rax, rsi
+    out dx, ax
     ret
