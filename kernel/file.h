@@ -56,3 +56,6 @@ typedef struct {
     uint16_t cluster_index;
     uint32_t file_size;
 } __attribute__ ((packed)) DirEntry;
+
+/* Public function prototype -------------------------------------------------*/
+void InitFileSystem(void);
