@@ -10,7 +10,7 @@
 /* Private define ------------------------------------------------------------*/
 #define ENTRY_EMPTY         0
 #define ENTRY_DELETED       0xE5
-
+#define START_CLUSTER_INDEX 2
 
 /* Private variable ----------------------------------------------------------*/
 static BPB s_BIOS_parameter_block = {0};
@@ -24,6 +24,8 @@ static struct DirEntryRoot {
 BPB *GetBPB(void);
 int FindFileInRootDir(const char *filename, DirEntry* entry);
 static void GetRelativeFileName(DirEntry* entry, char *buf);
+static void ReadFileData(int start_cluster, int length, void *buf);
+
 /* Public function  ----------------------------------------------------------*/
 void InitFileSystem(void)
 {
@@ -73,8 +75,23 @@ void InitFileSystem(void)
     DirEntry entry;
     int entry_number = FindFileInRootDir("test.txt", &entry);
     if (entry_number >= 0) {
-        printk("Found this file test.txt at entry %d\n", entry_number);
-        printk("Data at cluster %d\n", entry.cluster_index);
+        uint32_t byte_per_sector = GetBPB()->bytes_per_sector
+                                   * GetBPB()->sectors_per_cluster;
+
+        uint16_t number_of_cluster = entry.file_size / byte_per_sector;
+
+        if (entry.file_size % byte_per_sector) {
+            number_of_cluster += 1;
+        }
+
+        char buf[2048] = {0};
+        ReadFileData(entry.cluster_index, number_of_cluster, buf);
+        printk("Data of file is: %s, "
+               "cluster: %d, "
+               "number of cluster: %d\n",
+               buf,
+               entry.cluster_index,
+               number_of_cluster);
     }
 
     printk("Initialized FAT 16 file system.\n");
@@ -134,7 +151,6 @@ exit:
     return status;
 }
 
-
 static void GetRelativeFileName(DirEntry* entry, char *buf)
 {
     char *filename = entry->name;
@@ -171,4 +187,30 @@ static void GetRelativeFileName(DirEntry* entry, char *buf)
     }
 
     *buf = 0x00;
+}
+
+static void ReadFileData(int start_cluster, int length, void *buf)
+{
+    uint32_t root_dir_start_sector = GetBPB()->fat_copies
+                                     * GetBPB()->sectors_per_fat
+                                     + GetBPB()->reserved_sectors;
+
+    uint32_t root_dir_sector_size = GetBPB()->root_dir_entries
+                                    * sizeof(DirEntry)
+                                    / GetBPB()->bytes_per_sector;
+
+    uint32_t data_region_start_sector = root_dir_start_sector
+                                        + root_dir_sector_size;
+
+    /* Note that cluster start with index 2, so we need subtract to 2. */
+    uint32_t file_data_start_sector = (start_cluster - START_CLUSTER_INDEX)
+                                      * GetBPB()->sectors_per_cluster
+                                      + data_region_start_sector;
+
+    uint16_t number_of_sector_need_to_read = length
+                                             * GetBPB()->sectors_per_cluster;
+
+    DiskReadSectors(file_data_start_sector,
+                    number_of_sector_need_to_read,
+                    buf);
 }
