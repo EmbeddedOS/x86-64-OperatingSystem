@@ -25,6 +25,46 @@ BPB *GetBPB(void);
 int FindFileInRootDir(const char *filename, DirEntry* entry);
 static void GetRelativeFileName(DirEntry* entry, char *buf);
 static void ReadFileData(int start_cluster, int length, void *buf);
+static inline int GetRootDirectoryStartSector(void)
+{
+    return GetBPB()->fat_copies
+           * GetBPB()->sectors_per_fat
+           + GetBPB()->reserved_sectors;
+}
+
+static inline int GetRootDirectorySectorSize(void)
+{
+    return GetBPB()->root_dir_entries
+           * sizeof(DirEntry)
+           / GetBPB()->bytes_per_sector;
+}
+
+static inline int GetDataRegionStartSector(void)
+{
+    return GetRootDirectoryStartSector()
+           + GetRootDirectorySectorSize();
+}
+
+static inline int GetBytesPerSector(void)
+{
+    return GetBPB()->bytes_per_sector;
+}
+
+static inline int GetSectorsPerCluster(void)
+{
+    return GetBPB()->sectors_per_cluster;
+}
+
+static inline int GetBytesPerCluster(void)
+{
+    return GetSectorsPerCluster() * GetBytesPerSector();
+}
+
+
+static inline int GetSignature(void)
+{
+    return GetBPB()->signature;
+}
 
 /* Public function  ----------------------------------------------------------*/
 void InitFileSystem(void)
@@ -34,53 +74,35 @@ void InitFileSystem(void)
     ASSERT(bpb != NULL);
 
     DiskReadSectors(0, 1, bpb);
-    memcpy(&s_BIOS_parameter_block, bpb, sizeof(BPB));
+    memcpy(GetBPB(), bpb, sizeof(BPB));
 
     uint8_t boot_signature_1 = (uint8_t)((char *)bpb)[510];
     uint8_t boot_signature_2 = (uint8_t)((char *)bpb)[511];
     uint16_t boot_signature = (((uint16_t)boot_signature_1) << 8)
                                 | boot_signature_2;
 
-    uint8_t fat16_signature = s_BIOS_parameter_block.signature;
-
     printk("Boot signature: %x\n", boot_signature);
-    printk("FAT16 signature: %x\n", fat16_signature);
+    printk("FAT16 signature: %x\n", GetSignature());
 
     ASSERT(boot_signature == 0x55AA);
-    ASSERT(fat16_signature == 0x29);
+    ASSERT(GetSignature() == 0x29);
 
     kfree(bpb);
-    printk("OEM identifier: %s\n", s_BIOS_parameter_block.oem_identifier);
 
     /* 2. Calculate root directory address. */
-    s_dir_entry_root.base_address = (s_BIOS_parameter_block.fat_copies
-                                    * s_BIOS_parameter_block.sectors_per_fat
-                                    + s_BIOS_parameter_block.reserved_sectors)
-                                    * s_BIOS_parameter_block.bytes_per_sector;
-
-    s_dir_entry_root.total_entries = s_BIOS_parameter_block.root_dir_entries;
-
-    uint64_t root_directory_size = s_BIOS_parameter_block.root_dir_entries
-                                    * sizeof(DirEntry);
-
-    s_data_region_base_address = s_dir_entry_root.base_address
-                                 + root_directory_size;
-
     printk("FAT16 Root Directory base address: %x\n",
-            s_dir_entry_root.base_address);
+           GetRootDirectoryStartSector() * GetBytesPerSector());
 
     printk("FAT16 DATA region base address: %x\n",
-            s_data_region_base_address);
+            GetDataRegionStartSector() * GetBytesPerSector());
 
     DirEntry entry;
     int entry_number = FindFileInRootDir("test.txt", &entry);
     if (entry_number >= 0) {
-        uint32_t byte_per_sector = GetBPB()->bytes_per_sector
-                                   * GetBPB()->sectors_per_cluster;
 
-        uint16_t number_of_cluster = entry.file_size / byte_per_sector;
+        uint16_t number_of_cluster = entry.file_size / GetBytesPerCluster();
 
-        if (entry.file_size % byte_per_sector) {
+        if (entry.file_size % GetBytesPerCluster()) {
             number_of_cluster += 1;
         }
 
@@ -108,12 +130,10 @@ int FindFileInRootDir(const char *filename, DirEntry* entry)
     int status = -1;
 
     DirEntry *sector_data= kalloc();
-    uint16_t number_of_sectors = GetBPB()->root_dir_entries
-                                * sizeof(DirEntry)
-                                / GetBPB()->bytes_per_sector;
-    uint32_t root_entry_start = (GetBPB()->fat_copies
-                                 * GetBPB()->sectors_per_fat
-                                 + GetBPB()->reserved_sectors);
+
+    uint16_t number_of_sectors = GetRootDirectorySectorSize();
+
+    uint32_t root_entry_start = GetRootDirectoryStartSector();
 
     uint16_t entries_per_sector = GetBPB()->bytes_per_sector / sizeof(DirEntry);
     for (int i = 0; i < number_of_sectors; i++) {
@@ -191,24 +211,14 @@ static void GetRelativeFileName(DirEntry* entry, char *buf)
 
 static void ReadFileData(int start_cluster, int length, void *buf)
 {
-    uint32_t root_dir_start_sector = GetBPB()->fat_copies
-                                     * GetBPB()->sectors_per_fat
-                                     + GetBPB()->reserved_sectors;
-
-    uint32_t root_dir_sector_size = GetBPB()->root_dir_entries
-                                    * sizeof(DirEntry)
-                                    / GetBPB()->bytes_per_sector;
-
-    uint32_t data_region_start_sector = root_dir_start_sector
-                                        + root_dir_sector_size;
-
     /* Note that cluster start with index 2, so we need subtract to 2. */
+    ASSERT(start_cluster >= 2);
     uint32_t file_data_start_sector = (start_cluster - START_CLUSTER_INDEX)
-                                      * GetBPB()->sectors_per_cluster
-                                      + data_region_start_sector;
+                                      * GetSectorsPerCluster()
+                                      + GetDataRegionStartSector();
 
     uint16_t number_of_sector_need_to_read = length
-                                             * GetBPB()->sectors_per_cluster;
+                                             * GetSectorsPerCluster();
 
     DiskReadSectors(file_data_start_sector,
                     number_of_sector_need_to_read,
