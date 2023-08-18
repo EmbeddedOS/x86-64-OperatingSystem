@@ -96,4 +96,5 @@ void EOI(void);
 uint8_t ReadISR(void);
 void LoadIDT(IDTPointer *ptr);
 uint64_t ReadCR2(void);
+uint64_t ReadCR3(void);
 void TrapReturn(void);

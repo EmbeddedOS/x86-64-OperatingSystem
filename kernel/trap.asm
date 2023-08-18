@@ -31,6 +31,7 @@ global ReadISR
 global LoadIDT
 global LoadCR3
 global ReadCR2
+global ReadCR3
 global ProcessStart
 global TrapReturn
 global ContextSwitch
@@ -210,6 +211,10 @@ LoadCR3:
 
 ReadCR2:
     mov rax, cr2
+    ret
+
+ReadCR3:
+    mov rax,cr3
     ret
 
 ProcessStart:
