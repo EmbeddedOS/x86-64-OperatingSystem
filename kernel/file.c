@@ -14,17 +14,16 @@
 
 /* Private variable ----------------------------------------------------------*/
 static BPB s_BIOS_parameter_block = {0};
-static uint64_t s_data_region_base_address = {0};
-static struct DirEntryRoot {
-    uint64_t base_address;
-    uint32_t total_entries;
-} s_dir_entry_root = {0};
 
 /* Private function prototype ------------------------------------------------*/
 BPB *GetBPB(void);
+
 int FindFileInRootDir(const char *filename, DirEntry* entry);
+
 static void GetRelativeFileName(DirEntry* entry, char *buf);
+
 static void ReadFileData(int start_cluster, int length, void *buf);
+
 static inline int GetRootDirectoryStartSector(void)
 {
     return GetBPB()->fat_copies
@@ -60,6 +59,16 @@ static inline int GetBytesPerCluster(void)
     return GetSectorsPerCluster() * GetBytesPerSector();
 }
 
+static inline int GetNumberOfClustersStoringFileData(int file_size)
+{
+    int length = file_size / GetBytesPerCluster();
+    
+    if (file_size % GetBytesPerCluster()) {
+        length += 1;
+    }
+
+    return length;
+}
 
 static inline int GetSignature(void)
 {
@@ -100,20 +109,14 @@ void InitFileSystem(void)
     int entry_number = FindFileInRootDir("test.txt", &entry);
     if (entry_number >= 0) {
 
-        uint16_t number_of_cluster = entry.file_size / GetBytesPerCluster();
-
-        if (entry.file_size % GetBytesPerCluster()) {
-            number_of_cluster += 1;
-        }
-
         char buf[2048] = {0};
-        ReadFileData(entry.cluster_index, number_of_cluster, buf);
-        printk("Data of file is: %s, "
-               "cluster: %d, "
-               "number of cluster: %d\n",
+        ReadFileData(entry.cluster_index,
+                     GetNumberOfClustersStoringFileData(entry.file_size),
+                     buf);
+
+        printk("Data of file is: %s\n",
                buf,
-               entry.cluster_index,
-               number_of_cluster);
+               entry.cluster_index);
     }
 
     printk("Initialized FAT 16 file system.\n");
@@ -206,7 +209,7 @@ static void GetRelativeFileName(DirEntry* entry, char *buf)
         i++;
     }
 
-    *buf = 0x00;
+    *buf = '\0';
 }
 
 static void ReadFileData(int start_cluster, int length, void *buf)
