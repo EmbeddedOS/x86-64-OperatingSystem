@@ -5,7 +5,8 @@ FLAGS=-w -g -ffreestanding  -I ./include -c
 
 OBJS= ./string.c     \
       ./strings.c    \
-      ./list.c
+      ./list.c       \
+      ./ctype.c
 
 
 OBJO = $(OBJS:.c=.o) 
