@@ -1,4 +1,6 @@
 #include <string.h>
+#include <strings.h>
+
 #include "file.h"
 #include "disk.h"
 #include "assert.h"
@@ -20,8 +22,8 @@ static struct DirEntryRoot {
 
 /* Private function prototype ------------------------------------------------*/
 BPB *GetBPB(void);
-int FindFileInRootDir(const char *filename);
-static void GetRelativeFileName(DirEntry * entry, void *buf);
+int FindFileInRootDir(const char *filename, DirEntry* entry);
+static void GetRelativeFileName(DirEntry* entry, char *buf);
 /* Public function  ----------------------------------------------------------*/
 void InitFileSystem(void)
 {
@@ -68,7 +70,13 @@ void InitFileSystem(void)
     printk("FAT16 DATA region base address: %x\n",
             s_data_region_base_address);
 
-    FindFileInRootDir("");
+    DirEntry entry;
+    int entry_number = FindFileInRootDir("test.txt", &entry);
+    if (entry_number >= 0) {
+        printk("Found this file test.txt at entry %d\n", entry_number);
+        printk("Data at cluster %d\n", entry.cluster_index);
+    }
+
     printk("Initialized FAT 16 file system.\n");
 }
 
@@ -78,8 +86,10 @@ BPB *GetBPB(void)
     return &s_BIOS_parameter_block;
 }
 
-int FindFileInRootDir(const char *filename)
+int FindFileInRootDir(const char *filename, DirEntry* entry)
 {
+    int status = -1;
+
     DirEntry *sector_data= kalloc();
     uint16_t number_of_sectors = GetBPB()->root_dir_entries
                                 * sizeof(DirEntry)
@@ -107,11 +117,58 @@ int FindFileInRootDir(const char *filename)
                 continue;
             }
 
-            printk("file name: %s in sector: %d, data in cluster: %d\n",
-                sector_data[j].name, root_entry_start + i,
-                sector_data[j].cluster_index);
+            char tmp_filename[13] = {0};
+            GetRelativeFileName(&sector_data[j], tmp_filename);
+
+            if (strcasecmp(filename, tmp_filename) == 0) {
+                /* Found the file. */
+                memcpy(entry, &sector_data[j], sizeof(DirEntry));
+                status = i * entries_per_sector + j;
+                goto exit;
+            }
         }
     }
 
+exit:
     kfree(sector_data);
+    return status;
+}
+
+
+static void GetRelativeFileName(DirEntry* entry, char *buf)
+{
+    char *filename = entry->name;
+    char *ext = entry->ext;
+    int i = 0;
+
+    while (*filename != '\0' && *filename != ' ') {
+        *buf = *filename;
+        filename++;
+        buf += 1;
+
+        if (i >= sizeof(entry->name) - 1) {
+            break;
+        }
+
+        i++;
+    }
+
+    *buf = '.';
+    buf += 1;
+    i = 0;
+
+    while (*ext != '\0' && *ext != ' ')
+    {
+        *buf = *ext;
+        ext++;
+        buf += 1;
+
+        if (i >= sizeof(entry->ext) - 1) {
+            break;
+        }
+
+        i++;
+    }
+
+    *buf = 0x00;
 }
