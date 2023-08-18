@@ -164,7 +164,6 @@ typedef struct {
 /* Public function prototype -------------------------------------------------*/
 
 void InitProcess(void);
-void StartScheduler(void);
 void ProcessStart(TrapFrame *tf);
 Scheduler *GetScheduler(void);
 

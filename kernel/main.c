@@ -19,5 +19,4 @@ void KMain(void)
     InitSystemCall();
     InitProcess();
     printk("Finished kernel initialization. Welcome to LARVA-OS.\n");
-    StartScheduler();
 }

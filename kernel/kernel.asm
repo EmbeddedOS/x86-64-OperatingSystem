@@ -125,9 +125,16 @@ InitializePIC:
 
     ; 6. Jump to kernel main.
 KernelEntry:
+    xor ax, ax
+    mov ss, ax
+
     mov rsp, 0xFFFF800000200000   ; Adjust kernel stack pointer that is new
                                   ; stack pointer we will use in the C code.
     call KMain
+
+    ; If no tasks to run, the kernel go to here, we still enable interrupt for
+    ; IDLE task.
 KernelEnd:
+    sti
     hlt
     jmp KernelEnd

@@ -3,6 +3,9 @@
 #include "assert.h"
 #include <string.h>
 
+/* Private Define ------------------------------------------------------------*/
+#define IDLE_PROCESS_PID    0
+
 /* Private variable ----------------------------------------------------------*/
 
 extern TSS TaskStateSegment; /* Extern from ASM. */
@@ -13,8 +16,7 @@ static Scheduler s_scheduler;
 /* Private function prototypes -----------------------------------------------*/
 
 static Process *FindFreeProcessSlot(void);
-static void SetProcessEntry(Process* proc, uint64_t user_addr);
-
+static Process *CreateNewProcess(void);
 /**
  * @brief   Set TaskStateSegment point to top of the process's kernel stack. So
  *          when we jump from ring 3 to ring 0, the kernel stack will be used.
@@ -30,40 +32,40 @@ static void SwitchProcess(Process *prev, Process *new);
 
 List *WaitListRemoveReadyProcess(HeadList *list, int wait_id);
 
+/**
+ * @brief   This function initialize the IDLE task. If the ready process list is
+ *          empty, we run IDLE task. And the IDLE do nothing, just jump loop in
+ *          KernelEnd, and enable interrupt, waiting for new context switch
+ *          event, triggered by the timer interrupt.
+ *          IDLE task always have PID 0, and this function should be call first.
+ */ 
+static void InitIDLEProcess(void);
+
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
+    /* Init IDLE process first. */
+    InitIDLEProcess();
+
+    /* Init user processes. */
     Scheduler *scheduler = GetScheduler();
     HeadList *list = &scheduler->ready_proc_list;
 
     uint64_t addr[3] = {0x20000, 0x30000, 0x40000};
 
     for (int i = 0; i < 3; i++) {
-        Process *proc = FindFreeProcessSlot();
-        SetProcessEntry(proc, addr[i]);
+        Process *proc = CreateNewProcess();
+
+        /* Map user memory (2MB) to the kernel virtual memory we just made. */
+        ASSERT(SetupUVM(proc->page_map,
+                (uint64_t)PHY_TO_VIR(addr[i]),
+                512 * 10));
+
+        proc->state = PROCESS_SLOT_READY;
+
         ListPushBack(list, (List *)proc);
     }
-}
 
-void StartScheduler(void)
-{
-    Scheduler *scheduler = GetScheduler();
-
-    /* 1. Get process from ready list. */
-    Process *proc = (Process *)ListPopFront(&scheduler->ready_proc_list);
-
-    /* 2. Make process as running. */
-    proc->state = PROCESS_SLOT_RUNNING;
-    scheduler->current_proc = proc;
-
-    /* 3. Set TaskStateSegment point to it's kernel stack. */
-    SetTSS(proc);
-
-    /* 4. Switch to process virtual memory. */
-    SwitchVM(proc->page_map);
-
-    /* 5. Start process program. */
-    ProcessStart(proc->tf);
 }
 
 Scheduler *GetScheduler(void)
@@ -85,7 +87,11 @@ void Yield(void)
      * list. */
     proc = scheduler->current_proc;
     proc->state = PROCESS_SLOT_READY;
-    ListPushBack(list, (List *)proc);
+
+    /* We don't push the IDLE task to the ready list. */
+    if (proc->pid != IDLE_PROCESS_PID) {
+        ListPushBack(list, (List *)proc);
+    }
 
     /* Process switch. */
     Schedule();
@@ -192,49 +198,6 @@ static Process *FindFreeProcessSlot(void)
     return proc;
 }
 
-static void SetProcessEntry(Process* proc, uint64_t user_addr)
-{
-    uint64_t stack_top;
-
-    proc->state = PROCESS_SLOT_INITIALIZED;
-    proc->pid = s_pid_num++;
-    proc->wait_id = 0;
-
-    /* Each process has 2MB its own kernel stack. */
-    proc->stack = (uint64_t)kalloc();
-    ASSERT(proc->stack != 0);
-
-    memset((void *)proc->stack, 0, STACK_SIZE);
-    stack_top = proc->stack + STACK_SIZE;
-
-    /* Because the process is not run until now, so it don't have the context.
-     * We make a empty context to it. That include 6 context registers, and
-     * return address. So, we make context point to `rsp` - 7 * 8. */
-    proc->context = stack_top - sizeof(TrapFrame) - 7*8;
-    /* We save the address of `TrapReturn` to rsp + 6. The next value of stack
-     * pointer will be return address. So we push `TrapReturn` to it. */
-    *(uint64_t *)(proc->context + 6*8) = (uint64_t)TrapReturn;
-
-    /* We save stack frame at top of kernel stack. */
-    proc->tf = (TrapFrame *)(stack_top - sizeof(TrapFrame));
-
-    proc->tf->cs = 0x10 | 3;
-    proc->tf->rip = USER_VIRTUAL_ADDRESS_BASE;
-    proc->tf->ss = 0x18 | 3;
-    proc->tf->rsp = USER_STACK_START;
-    proc->tf->rflags = 0x202;
-
-    /* We create a virtual memory that is mapped with kernel, so the kernel will
-     * reside at the same address in every user virtual memory. */
-    proc->page_map = SetupKVM();
-    ASSERT(proc->page_map != 0);
-
-    /* Map user memory (2MB) to the kernel virtual memory we just made. */
-    ASSERT(SetupUVM(proc->page_map, (uint64_t)PHY_TO_VIR(user_addr), 512 * 10));
-
-    proc->state = PROCESS_SLOT_READY;
-}
-
 static void SetTSS(Process *proc)
 {
     /* We set TSS structure by assigning the top of the kernel stack to rsp0 in
@@ -249,12 +212,16 @@ static void Schedule(void)
 
     Scheduler *scheduler = GetScheduler();
     HeadList *list = &scheduler->ready_proc_list;
-    ASSERT(!ListIsEmpty(list));
-
     prev_proc = scheduler->current_proc;
 
+    if (ListIsEmpty(list)) {
+        /* If the ready list is empty we run IDLE task next. */
+        current_proc = &s_process_manager[IDLE_PROCESS_PID];
+    } else {
+        current_proc = (Process *)ListPopFront(list);
+    }
+
     /* Get head ready process and make it as running. */
-    current_proc = (Process *)ListPopFront(list);
     current_proc->state = PROCESS_SLOT_RUNNING;
     scheduler->current_proc = current_proc;
 
@@ -299,4 +266,64 @@ List *WaitListRemoveReadyProcess(HeadList *list, int wait_id)
     }
 
     return item;
+}
+
+static void InitIDLEProcess(void)
+{
+    Process *proc;
+    proc = FindFreeProcessSlot();
+    proc->pid = IDLE_PROCESS_PID;
+    proc->page_map = PHY_TO_VIR(ReadCR3());
+    proc->state = PROCESS_SLOT_RUNNING;
+    GetScheduler()->current_proc = proc;
+}
+
+Process* CreateNewProcess(void)
+{
+    uint64_t stack_top = 0;
+    Process * proc = FindFreeProcessSlot();
+    if (proc == NULL) {
+        return NULL;
+    }
+
+    /* Each process has 2MB its own kernel stack. */
+    proc->stack = (uint64_t)kalloc();
+    if (proc->stack == 0) {
+        return NULL;
+    }
+
+    proc->state = PROCESS_SLOT_INITIALIZED;
+    proc->pid = s_pid_num++;
+    proc->wait_id = 0;
+
+    memset((void *)proc->stack, 0, STACK_SIZE);
+    stack_top = proc->stack + STACK_SIZE;
+
+    /* Because the process is not run until now, so it don't have the context.
+     * We make a empty context to it. That include 6 context registers, and
+     * return address. So, we make context point to `rsp` - 7 * 8. */
+    proc->context = stack_top - sizeof(TrapFrame) - 7*8;
+    /* We save the address of `TrapReturn` to rsp + 6. The next value of stack
+     * pointer will be return address. So we push `TrapReturn` to it. */
+    *(uint64_t *)(proc->context + 6*8) = (uint64_t)TrapReturn;
+
+    /* We save stack frame at top of kernel stack. */
+    proc->tf = (TrapFrame *)(stack_top - sizeof(TrapFrame));
+
+    proc->tf->cs = 0x10 | 3;
+    proc->tf->rip = USER_VIRTUAL_ADDRESS_BASE;
+    proc->tf->ss = 0x18 | 3;
+    proc->tf->rsp = USER_STACK_START;
+    proc->tf->rflags = 0x202;
+
+    /* We create a virtual memory that is mapped with kernel, so the kernel will
+     * reside at the same address in every user virtual memory. */
+    proc->page_map = SetupKVM();
+    if (proc->page_map == 0) {
+        kfree(proc->stack);
+        memset(proc, 0, sizeof(Process));
+        return NULL;
+    }
+
+    return proc;
 }
