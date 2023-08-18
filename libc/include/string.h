@@ -116,7 +116,5 @@ int strncmp(const char *s1, const char *s2, int c);
  * @param[in] s             - String to be copied.
  * @param[in] n             - Number of characters to be copied from source.
  * @return    This function returns the pointer to the copied string.
-
-
  */
 char *strncpy(char *d, const char *s, size_t n);
