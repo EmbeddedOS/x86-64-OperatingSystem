@@ -145,7 +145,7 @@ int Open(Process* proc, const char *file_name)
 {
     int fd = -1;
     int file_desc_index = -1;
-    uint32_t entry_index = 0;
+    int16_t entry_index = 0;
 
     /* 1. Find a file entry in the process. */
     for (int i = USER_START_FD; i < PROCESS_MAXIMUM_FILE_DESCRIPTOR; i++) {
@@ -177,7 +177,6 @@ int Open(Process* proc, const char *file_name)
           control block index and file descriptor index also. */
     DirEntry entry = {0};
     entry_index = FindFileInRootDir(file_name, &entry);
-
     if (entry_index < 0) {
         /* Not found the file on the disk. */
         return -1;

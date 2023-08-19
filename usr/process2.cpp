@@ -14,9 +14,13 @@ int main(void)
 
     while (1)
     {
-        sleep(100);
+        sleep(300);
 
         int fd = open("test.txt");
+        if (fd == -1) {
+            printf("Cannot open file.\n");
+            continue;
+        }
         printf("fd: %d\n", fd);
         char buf[100];
 
