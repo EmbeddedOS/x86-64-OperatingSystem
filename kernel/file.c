@@ -14,6 +14,8 @@
 
 /* Private variable ----------------------------------------------------------*/
 static BPB s_BIOS_parameter_block = {0};
+static FCB *s_fcb_table = NULL;
+static FD *s_fd_table = NULL;
 
 /* Private function prototype ------------------------------------------------*/
 BPB *GetBPB(void);
@@ -23,6 +25,30 @@ int FindFileInRootDir(const char *filename, DirEntry* entry);
 static void GetRelativeFileName(DirEntry* entry, char *buf);
 
 static void ReadFileData(int start_cluster, int length, void *buf);
+
+/**
+ * @brief   We allocate a memory page for FCB table, so the maximum entries of
+ *          this table is PAGE_SIZE / sizeof(FCB).
+ * 
+ */
+void InitFileControlBLock(void);
+
+/**
+ * @brief   We allocate a memory page for FD table, so the maximum entries of
+ *          this table is PAGE_SIZE / sizeof(FD).
+ * 
+ */
+void InitFileDescriptorTable(void);
+
+static inline int GetMaxEntriesOfFCBTable()
+{
+    return PAGE_SIZE /sizeof(FCB);
+}
+
+static inline int GetMaxEntriesOfFDTable()
+{
+    return PAGE_SIZE /sizeof(FD);
+}
 
 static inline int GetRootDirectoryStartSector(void)
 {
@@ -75,6 +101,9 @@ static inline int GetSignature(void)
     return GetBPB()->signature;
 }
 
+static int
+ReadRawData(uint32_t cluster_index, char *buf, uint32_t pos, uint32_t size);
+
 /* Public function  ----------------------------------------------------------*/
 void InitFileSystem(void)
 {
@@ -105,23 +134,128 @@ void InitFileSystem(void)
     printk("FAT16 DATA region base address: %x\n",
             GetDataRegionStartSector() * GetBytesPerSector());
 
-    DirEntry entry;
-    int entry_number = FindFileInRootDir("test.txt", &entry);
-    if (entry_number >= 0) {
-
-        char buf[2048] = {0};
-        ReadFileData(entry.cluster_index,
-                     GetNumberOfClustersStoringFileData(entry.file_size),
-                     buf);
-
-        printk("Data of file is: %s\n",
-               buf,
-               entry.cluster_index);
-    }
+    /* 3. Initialize File control block table and file descriptor table. */
+    InitFileControlBLock();
+    InitFileDescriptorTable();
 
     printk("Initialized FAT 16 file system.\n");
 }
 
+int Open(Process* proc, const char *file_name)
+{
+    int fd = -1;
+    int file_desc_index = -1;
+    uint32_t entry_index = 0;
+
+    /* 1. Find a file entry in the process. */
+    for (int i = USER_START_FD; i < PROCESS_MAXIMUM_FILE_DESCRIPTOR; i++) {
+        if (proc->file[i] == NULL) {
+            fd = i;
+            break;
+        }
+    }
+
+    if (fd == -1) {
+        /* The process opened maximum files. */
+        return -1;
+    }
+
+    /* 2. Find the table entry for FD. */
+    for (int i = 0; i < GetMaxEntriesOfFDTable(); i++) {
+        if (s_fd_table[i].fcb == NULL) {
+            file_desc_index = i;
+            break;
+        }
+    }
+
+    if (file_desc_index == -1) {
+        /* No entry available. */
+        return -1;
+    }
+
+    /* 3. Find the file on the disk. And we use the entry index for the file
+          control block index and file descriptor index also. */
+    DirEntry entry = {0};
+    entry_index = FindFileInRootDir(file_name, &entry);
+
+    if (entry_index < 0) {
+        /* Not found the file on the disk. */
+        return -1;
+    }
+
+    /* 4. Update file control block entry. */
+    if (s_fcb_table[entry_index].open_count == 0) {
+        /* If this file is not opened yet, we setup the entry in FCB table. */
+        s_fcb_table[entry_index].dir_entry = entry_index;
+        s_fcb_table[entry_index].file_size = entry.file_size;
+        s_fcb_table[entry_index].start_cluster = entry.cluster_index;
+
+        memcpy(&s_fcb_table[entry_index].name, &entry.name, 8);
+        memcpy(&s_fcb_table[entry_index].ext, &entry.ext, 3);
+    }
+
+    s_fcb_table[entry_index].open_count++;
+
+    /* 5. link file descriptor entry to the FCB entry. */
+    memset(&s_fd_table[file_desc_index], 0, sizeof(FD));
+    s_fd_table[file_desc_index].fcb = &s_fcb_table[entry_index];
+
+    /* 6. Link the process file descriptor to the file descriptor entry. */
+    proc->file[fd] = &s_fd_table[file_desc_index];
+
+    return fd;
+}
+
+void Close(Process* proc, int fd)
+{
+    if (proc->file[fd] == NULL) {
+        return;
+    }
+
+    ASSERT (proc->file[fd]->fcb->open_count > 0);
+    proc->file[fd]->fcb->open_count--;
+    /* We don't clear file control block, because, when the file is opened, the
+     * file data is cached in the table, and then we can easily retrieve th file
+     * info. */
+
+    proc->file[fd]->fcb = NULL;
+    proc->file[fd] = NULL;
+}
+
+int Read(Process* proc, int fd, void *buffer, int size)
+{
+    uint32_t read_size;
+
+    if (proc->file[fd] == NULL) {
+        return -1;
+    }
+
+    uint32_t position = proc->file[fd]->position;
+    uint32_t file_size = proc->file[fd]->fcb->file_size;
+
+    if (position + size > file_size) {
+        /* Read the rest of file. */
+        size = file_size - position;
+    }
+
+    read_size = ReadRawData(proc->file[fd]->fcb->start_cluster,
+                            buffer,
+                            position,
+                            size);
+
+    proc->file[fd]->position += read_size;
+
+    return read_size;
+}
+
+int GetFileSize(Process *proc, int fd)
+{
+    if (proc->file[fd] == NULL) {
+        return -1;
+    }
+
+    return proc->file[fd]->fcb->file_size;
+}
 /* Private function  ---------------------------------------------------------*/
 BPB *GetBPB(void)
 {
@@ -226,4 +360,44 @@ static void ReadFileData(int start_cluster, int length, void *buf)
     DiskReadSectors(file_data_start_sector,
                     number_of_sector_need_to_read,
                     buf);
+}
+
+void InitFileControlBLock(void)
+{
+    s_fcb_table = (FCB *)kalloc();
+    ASSERT(s_fcb_table);
+
+    memset(s_fcb_table, 0, PAGE_SIZE);
+}
+
+void InitFileDescriptorTable(void)
+{
+    s_fd_table = (FD *)kalloc();
+    ASSERT(s_fd_table);
+
+    memset(s_fd_table, 0, PAGE_SIZE);
+}
+
+static int
+ReadRawData(uint32_t cluster_index, char *buf, uint32_t pos, uint32_t size)
+{
+    uint16_t number_of_clusters_need_to_read
+        = GetNumberOfClustersStoringFileData(size);
+
+    uint16_t start_cluster_need_to_read = cluster_index
+                                          + pos / GetBytesPerCluster();
+
+    uint16_t start_pos_in_cluster = pos % GetBytesPerCluster();
+
+    char *buffer = (char *)kalloc();
+
+    ReadFileData(start_cluster_need_to_read,
+                 number_of_clusters_need_to_read,
+                 buffer);
+
+    memcpy(buf, &buffer[start_pos_in_cluster], size);
+
+    kfree(buffer);
+
+    return size;
 }

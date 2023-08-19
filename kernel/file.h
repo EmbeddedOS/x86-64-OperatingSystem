@@ -2,8 +2,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "process.h"
 
 /* Public define -------------------------------------------------------------*/
+#define STANDARD_INPUT  0
+#define STANDARD_OUTPUT 1
+#define STANDARD_ERROR  2
+#define USER_START_FD   3
+
 #define SECTOR_SIZE     512
 
 /* Public type ---------------------------------------------------------------*/
@@ -57,5 +63,39 @@ typedef struct {
     uint32_t file_size;
 } __attribute__ ((packed)) DirEntry;
 
+/**
+ * @brief   File control block structure.
+ * 
+ */
+typedef struct {
+    char name[8];
+    char ext[3];
+    uint32_t start_cluster;
+    uint32_t dir_entry;
+    uint32_t file_size;
+    int open_count;
+} FCB;
+
+/**
+ * @brief   File Descriptor.
+ * 
+ * @property    fcb         - file descriptor pointer in the process to link
+ *                            these two structures.
+ * @property    position    - Indicates where the last time the process reads or
+ *                            writes in the file.
+ */
+struct FD {
+    FCB *fcb;
+    uint32_t position;
+};
+
+typedef struct FD FD;
+
 /* Public function prototype -------------------------------------------------*/
 void InitFileSystem(void);
+
+int Open(Process* proc, const char *file_name);
+void Close(Process* proc, int fd);
+int Read(Process* proc, int fd, void *buffer, int size);
+
+int GetFileSize(Process *proc, int fd);
