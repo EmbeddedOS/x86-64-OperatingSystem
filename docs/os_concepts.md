@@ -1884,3 +1884,20 @@ Kernel mode ||
 - So we call get all data with formula: `(start_of_data_section + (cluster_number - 2) * cluster_size)`
 
 - As for the sub-folders, the data of sub-folders is the 32 byte directory entries and but they are stored in the data section.
+
+### 59. File module
+
+- When a user program opens a file, a handle will return to the user. If the operation succeeds, the handle is an index to the list of open files, which is saved in the structure file descriptor pointer array in the process table.
+
+     Process 1              FD Table                FCB Table
+| FD entry pointer|---->|   Entry 1     |--\    |   Entry 1     |
+                        |   Entry 2     |   \-->|   Entry 2     |
+     Process 2          |   Entry 3     |       |   Entry 3     |
+| FD entry pointer|---->|   Entry 4     |       |   Entry 4     |
+                        |   Entry 5     |       |   Entry 5     |
+       ...              |   Entry 6     |       |   Entry 6     |
+                        |      ...      |       |      ...      |
+                        |   Entry n     |       |   Entry n     |
+
+- For example, we have two processes, both of which opened some files. Through each entries of the file descriptor pointer arrays.
+- In the process, we can find the file descriptor table entries and each entry in the **File Descriptor Table then** points to the **File Control Block** (which is actually a cache of the file entry). When they perform some operations on the file, we are actually using the FCP to retrieve the file info. In the system, pretty much all the file operations are related to the structure.
