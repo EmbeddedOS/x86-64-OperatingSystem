@@ -1,5 +1,6 @@
 
 #include <stddef.h>
+#include "file.h"
 #include "process.h"
 #include "keyboard.h"
 #include "syscall.h"
@@ -19,6 +20,9 @@ static int SysSleep(int64_t *arg);
 static int SysExit(int64_t *arg);
 static int SysWait(int64_t *arg);
 static int SysRead(int64_t *arg);
+static int SysOpen(int64_t *arg);
+static int SysClose(int64_t *arg);
+
 static int SysMemInfo(int64_t *arg);
 
 static void RegisterSystemCall(uint16_t num, SYSTEM_CALL call);
@@ -32,6 +36,9 @@ void InitSystemCall(void)
     RegisterSystemCall(3, SysWait);
     RegisterSystemCall(4, SysRead);
     RegisterSystemCall(5, SysMemInfo);
+    RegisterSystemCall(6, SysOpen);
+    RegisterSystemCall(7, SysClose);
+
 }
 
 void SystemCall(TrapFrame *tf)
@@ -107,22 +114,37 @@ static int SysWait(int64_t *arg)
 
 static int SysRead(int64_t *arg)
 {
-    /* TODO: implement file descriptor manager. */
     int16_t file_descriptor = arg[0];
 
     char *buffer = (char *)arg[1];
     int32_t length = arg[2];
-    if (file_descriptor == 0) {
-        /* We just handle standard input. */
+    if (file_descriptor == STANDARD_INPUT) {
+        /* Read from standard input. */
         for (int i = 0; i < length; i++) {
             buffer[i] = ReadKeyBuffer();
         }
+
+        return length;
     }
 
-    return length;
+    /* Read file. */
+    return Read(GetScheduler()->current_proc, file_descriptor, buffer, length);
 }
 
 static int SysMemInfo(int64_t *arg)
 {
     return GetTotalMem();
+}
+
+static int SysOpen(int64_t *arg)
+{
+    char *file_name = arg[0];
+    return Open(GetScheduler()->current_proc, file_name);
+}
+
+static int SysClose(int64_t *arg)
+{
+    int16_t file_descriptor = arg[0];
+    Close(GetScheduler()->current_proc, file_descriptor);
+    return 0;
 }

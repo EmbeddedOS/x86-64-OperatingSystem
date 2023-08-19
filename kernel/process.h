@@ -91,7 +91,7 @@
 #define NORMAL_PROCESS_WAIT_ID              -1
 #define INIT_PROCESS_WAIT_ID                1
 #define WAITING_KEYBOARD_PROCESS_WAIT_ID    -2
-
+#define PROCESS_MAXIMUM_FILE_DESCRIPTOR     100
 /* Public type ---------------------------------------------------------------*/
 typedef enum  {
     PROCESS_SLOT_UNUSED = 0,
@@ -121,6 +121,8 @@ typedef enum  {
  *                        frame.
  * @property tf         - 
  */
+struct FD;
+
 typedef struct {
     List *next;
     int pid;
@@ -130,6 +132,7 @@ typedef struct {
     uint64_t context;
     uint64_t stack;
     TrapFrame *tf;
+    struct FD *file[PROCESS_MAXIMUM_FILE_DESCRIPTOR];
 } Process;
 
 /**
