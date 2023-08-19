@@ -37,3 +37,15 @@ int mem(void)
 {
     return syscall0((int64_t)SYS_MEMINFO);
 }
+
+int open(const char* filename)
+{
+    return syscall1((int64_t)SYS_OPEN,
+                    (int64_t)filename);
+}
+
+int close(int fd)
+{
+    return syscall1((int64_t)SYS_CLOSE,
+                    (int64_t)fd);
+}
