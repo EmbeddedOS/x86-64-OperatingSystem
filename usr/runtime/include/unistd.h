@@ -11,3 +11,4 @@ void exit(void);
 int wait(int pid);
 int mem(void);
 int fork(void);
+int exec(const char* filename);

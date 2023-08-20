@@ -9,7 +9,8 @@ enum SYSCALL {
     SYS_MEMINFO = 5,
     SYS_OPEN = 6,
     SYS_CLOSE = 7,
-    SYS_FORK = 8
+    SYS_FORK = 8,
+    SYS_EXEC = 9
 };
 
 int syscall0(int64_t number);

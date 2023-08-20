@@ -55,3 +55,9 @@ int fork(void)
 {
     return syscall0((int64_t)SYS_FORK);
 }
+
+int exec(const char* filename)
+{
+    return syscall1((int64_t)SYS_EXEC,
+                    (int64_t)filename);
+}
