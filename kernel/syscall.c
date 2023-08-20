@@ -23,6 +23,7 @@ static int SysRead(int64_t *arg);
 static int SysOpen(int64_t *arg);
 static int SysClose(int64_t *arg);
 static int SysFork(int64_t *arg);
+static int SysExec(int64_t *arg);
 
 static int SysMemInfo(int64_t *arg);
 
@@ -40,6 +41,7 @@ void InitSystemCall(void)
     RegisterSystemCall(6, SysOpen);
     RegisterSystemCall(7, SysClose);
     RegisterSystemCall(8, SysFork);
+    RegisterSystemCall(9, SysExec);
 }
 
 void SystemCall(TrapFrame *tf)
@@ -154,4 +156,10 @@ static int SysClose(int64_t *arg)
 static int SysFork(int64_t *arg)
 {
     return Fork();
+}
+
+static int SysExec(int64_t *arg)
+{
+    char *file_name = arg[0];
+    return Exec(GetScheduler()->current_proc, file_name);
 }

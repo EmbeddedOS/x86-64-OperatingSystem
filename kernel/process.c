@@ -251,6 +251,46 @@ int Fork(void)
     return proc->pid;
 }
 
+int Exec(Process *proc, const char *filename)
+{
+    int fd = 0;
+    int program_size = 0;
+
+    fd = Open(proc, filename);
+    if (fd < 0) {
+        /* If we cannot open the file, we exit current process. */
+        printk("DEBUG: Cannot open file.\n");
+        Exit();
+    }
+
+    /* Clear all virtual memory. */
+    memset((void *)USER_VIRTUAL_ADDRESS_BASE, 0, PAGE_SIZE);
+    program_size = GetFileSize(proc, fd);
+
+    /* Copy all program file to virtual address base. */
+    program_size = Read(proc,
+                        fd,
+                        (void *)USER_VIRTUAL_ADDRESS_BASE,
+                        program_size);
+
+    if (program_size < 0) {
+        /* Exit if we can not read data file. */
+        Exit();
+    }
+
+    Close(proc, fd);
+
+    /* Clear trap frame and set it to default mode. */
+    memset(proc->tf, 0, sizeof(TrapFrame));
+    proc->tf->cs = 0x10 | 3;
+    proc->tf->rip = USER_VIRTUAL_ADDRESS_BASE;
+    proc->tf->ss = 0x18 | 3;
+    proc->tf->rsp = USER_STACK_START;
+    proc->tf->rflags = 0x202;
+
+    return 0;
+}
+
 /* Private function ----------------------------------------------------------*/
 static Process *FindFreeProcessSlot(void)
 {

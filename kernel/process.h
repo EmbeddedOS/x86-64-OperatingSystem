@@ -217,3 +217,5 @@ void Exit(void);
 void Wait(int pid);
 
 int Fork(void);
+
+int Exec(Process *proc, const char *filename);
