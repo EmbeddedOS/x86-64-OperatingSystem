@@ -1909,3 +1909,9 @@ Kernel mode ||
 - The new process could be used to execute a command or launch a new process, etc.
 
 - One more thing we need to note is the shared files. Suppose the current process opens some files. And we have some entries in the process table to represent those files. One way fork process, we will copy the file descriptor entry pointer to the new process. In this case, the current process and the new process are pointing to the same files. Therefore we need another counter in the file descriptor table entry to save the info.
+
+### 61. Exec system call
+
+- The execute function is especially important for us because it means that we can build a program in the host system and copy it to our system, run the program just as we did in the OSs.
+
+- In order to run a program in our system, we first fork a process, and right after we are in the new process we call execute function to launch the specific program. The execution function will search the program with the help of the file system and copy its instructions and data to the user space. If we can find the program in the image and at this point the new process will be running just as we launched the specific program.
