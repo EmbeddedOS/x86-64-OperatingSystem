@@ -33,6 +33,8 @@ static void SwitchProcess(Process *prev, Process *new);
 
 List *WaitListRemoveReadyProcess(HeadList *list, int wait_id);
 
+List *RemoveProcessWithPID(HeadList *list, int pid);
+
 /**
  * @brief   This function initialize the IDLE task. If the ready process list is
  *          empty, we run IDLE task. And the IDLE do nothing, just jump loop in
@@ -41,8 +43,6 @@ List *WaitListRemoveReadyProcess(HeadList *list, int wait_id);
  *          IDLE task always have PID 0, and this function should be call first.
  */ 
 static void InitIDLEProcess(void);
-
-static bool CopyUVM(uint64_t new_page, uint64_t current_page, int size);
 
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
@@ -161,7 +161,7 @@ void Exit(void)
     Schedule();
 }
 
-void Wait(void)
+void Wait(int pid)
 {
     Process *proc = NULL;
     Scheduler *scheduler = GetScheduler();
@@ -170,14 +170,32 @@ void Wait(void)
     /* Forever loop to cleanup resources of all killed process. */
     while (1) {
         if (!ListIsEmpty(list)) {
-            proc = (Process *)ListPopFront(list);
-            ASSERT(proc->state == PROCESS_SLOT_KILLED);
+            proc = (Process *)RemoveProcessWithPID(list, pid);
+            if (proc != NULL) {
+                ASSERT(proc->state == PROCESS_SLOT_KILLED);
 
-            /* Cleanup the process. */
-            kfree(proc->stack);
-            FreeVM(proc->page_map);
-            memset(proc, 0, sizeof(Process));
-            proc->state = PROCESS_SLOT_UNUSED;
+                /* Cleanup the process. */
+                kfree(proc->stack);
+                FreeVM(proc->page_map);
+                
+                /* Close opened files. */
+                for (int i = USER_START_FD;
+                     i < PROCESS_MAXIMUM_FILE_DESCRIPTOR;
+                     i++) {
+
+                    if (proc->file[i] != NULL) {
+                        proc->file[i]->fcb->open_count--;
+                        proc->file[i]->open_count--;
+
+                        if (proc->file[i]->open_count == 0) {
+                            proc->file[i]->fcb = NULL;
+                        }
+                    }
+                }
+
+                memset(proc, 0, sizeof(Process));
+                break;
+            }
         } else {
             /* Sleep if we don't have any killed process. */
             Sleep(INIT_PROCESS_WAIT_ID);
@@ -319,6 +337,39 @@ List *WaitListRemoveReadyProcess(HeadList *list, int wait_id)
     return item;
 }
 
+List *RemoveProcessWithPID(HeadList *list, int pid)
+{
+  List *current = list->next;
+    List *prev = (List *)list;
+    List *item = NULL;
+
+    while(current !=NULL) {
+        /* remove from list if matching pid. */
+        if (((Process *)current)->pid == pid) {
+            /* If found a ready process return it. */
+            prev->next = current->next;
+            item = current;
+
+            if (list->next == NULL) {
+                /* Current list is empty. */
+                list->tail = NULL;
+            } else if (current->next == NULL) {
+                /* The last one item in the list. */
+                list->tail = prev;
+            }
+
+            break;
+        }
+
+        /* Check next process in the list. */
+        prev = current;
+        current = current->next;
+    }
+
+    return item;
+}
+
+
 static void InitIDLEProcess(void)
 {
     Process *proc;
@@ -377,9 +428,4 @@ Process* CreateNewProcess(void)
     }
 
     return proc;
-}
-
-static bool CopyUVM(uint64_t new_page, uint64_t current_page, int size)
-{
-
 }

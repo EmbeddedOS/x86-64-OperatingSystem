@@ -214,6 +214,6 @@ void Exit(void);
  *              process has done it's job in user space.
  * 
  */
-void Wait(void);
+void Wait(int pid);
 
 int Fork(void);
