@@ -1901,3 +1901,11 @@ Kernel mode ||
 
 - For example, we have two processes, both of which opened some files. Through each entries of the file descriptor pointer arrays.
 - In the process, we can find the file descriptor table entries and each entry in the **File Descriptor Table then** points to the **File Control Block** (which is actually a cache of the file entry). When they perform some operations on the file, we are actually using the FCP to retrieve the file info. In the system, pretty much all the file operations are related to the structure.
+
+### 60. Fork
+
+- The fork system call, we create a new process which is in fact a copied one from the process which does a fork. The differences are the PID number, the kernel stack and user address space ET. When they return to the user space, they will be running separately.
+
+- The new process could be used to execute a command or launch a new process, etc.
+
+- One more thing we need to note is the shared files. Suppose the current process opens some files. And we have some entries in the process table to represent those files. One way fork process, we will copy the file descriptor entry pointer to the new process. In this case, the current process and the new process are pointing to the same files. Therefore we need another counter in the file descriptor table entry to save the info.
