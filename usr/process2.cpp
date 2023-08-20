@@ -17,20 +17,20 @@ int main(void)
         sleep(300);
 
         int fd = open("test.txt");
-        printf("fd: %d\n", (int64_t)fd);
+        //printf("fd: %d\n", (int64_t)fd);
 
         if (fd == -1) {
-            printf("Cannot open file\n");
+        //    printf("Cannot open file\n");
             continue;
         }
         char buf[100];
 
         int byte = read(fd, buf, 100);
-        printf("data file is: %s byte: %d\n", buf, byte);
+        //printf("data file is: %s byte: %d\n", buf, byte);
 
         close(fd);
 
-        printf("closed\n");
+        //printf("closed\n");
     }
 
     Test t;

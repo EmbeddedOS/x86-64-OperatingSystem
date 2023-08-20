@@ -9,6 +9,8 @@ all:
 	gcc $(CFLAGS) $(INC) process1.c -o process1.o
 	gcc $(CFLAGS) $(INC) process2.cpp -o process2.o
 	gcc $(CFLAGS) $(INC) process3.c -o process3.o
+	gcc $(CFLAGS) $(INC) process4.c -o process4.o
+
 	gcc $(CFLAGS) $(INC) shell.c -o shell.o
 
 	ld $(LDFLAGS) -o process1.tmp start.o process1.o $(LIBC)
@@ -19,6 +21,9 @@ all:
 
 	ld $(LDFLAGS) -o process3.tmp start.o process3.o $(LIBC)
 	objcopy -O binary process3.tmp process3.bin
+
+	ld $(LDFLAGS) -o process4.tmp start.o process4.o $(LIBC)
+	objcopy -O binary process4.tmp process4.bin
 
 	ld $(LDFLAGS) -o shell.tmp start.o shell.o $(LIBC)
 	objcopy -O binary shell.tmp shell.bin
