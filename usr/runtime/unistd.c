@@ -28,9 +28,10 @@ void exit(void)
     syscall0((int64_t)SYS_EXIT);
 }
 
-int wait(void)
+int wait(int pid)
 {
-    return syscall0((int64_t)SYS_WAIT);
+    return syscall1((int64_t)SYS_WAIT,
+                    (int64_t)pid);
 }
 
 int mem(void)
@@ -48,4 +49,9 @@ int close(int fd)
 {
     return syscall1((int64_t)SYS_CLOSE,
                     (int64_t)fd);
+}
+
+int fork(void)
+{
+    return syscall0((int64_t)SYS_FORK);
 }
