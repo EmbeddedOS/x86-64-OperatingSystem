@@ -198,6 +198,7 @@ int Open(Process* proc, const char *file_name)
     /* 5. link file descriptor entry to the FCB entry. */
     memset(&s_fd_table[file_desc_index], 0, sizeof(FD));
     s_fd_table[file_desc_index].fcb = &s_fcb_table[entry_index];
+    s_fd_table[file_desc_index].open_count = 1;
 
     /* 6. Link the process file descriptor to the file descriptor entry. */
     proc->file[fd] = &s_fd_table[file_desc_index];
@@ -213,11 +214,18 @@ void Close(Process* proc, int fd)
 
     ASSERT (proc->file[fd]->fcb->open_count > 0);
     proc->file[fd]->fcb->open_count--;
+    proc->file[fd]->open_count--;
+
     /* We don't clear file control block, because, when the file is opened, the
      * file data is cached in the table, and then we can easily retrieve th file
      * info. */
+    if (proc->file[fd]->open_count == 0) {
+        /* If the FD count is zero, mean fd entry is not used, we save it to
+         * NULL. Otherwise, the file descriptor entry is used by others and we
+         * leave the FCB pointer unchanged. */
+        proc->file[fd]->fcb = NULL;
+    }
 
-    proc->file[fd]->fcb = NULL;
     proc->file[fd] = NULL;
 }
 

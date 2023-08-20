@@ -215,3 +215,5 @@ void Exit(void);
  * 
  */
 void Wait(void);
+
+int Fork(void);

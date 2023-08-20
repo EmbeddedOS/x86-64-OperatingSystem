@@ -87,6 +87,7 @@ typedef struct {
 struct FD {
     FCB *fcb;
     uint32_t position;
+    int open_count;
 };
 
 typedef struct FD FD;

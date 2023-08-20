@@ -1,4 +1,5 @@
 #include "process.h"
+#include "file.h"
 #include "printk.h"
 #include "assert.h"
 #include <string.h>
@@ -40,6 +41,8 @@ List *WaitListRemoveReadyProcess(HeadList *list, int wait_id);
  *          IDLE task always have PID 0, and this function should be call first.
  */ 
 static void InitIDLEProcess(void);
+
+static bool CopyUVM(uint64_t new_page, uint64_t current_page, int size);
 
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
@@ -180,6 +183,54 @@ void Wait(void)
             Sleep(INIT_PROCESS_WAIT_ID);
         }
     }
+}
+
+int Fork(void)
+{
+    Process *proc = NULL;
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->ready_proc_list;
+    Process *current_proc = scheduler->current_proc;
+
+    proc = CreateNewProcess();
+    if (proc == NULL) {
+        printk("DEBUG: Failed to create new process.\n");
+        return -1;
+    }
+
+    if (!CopyUVM(proc->page_map, current_proc->page_map, PAGE_SIZE)) {
+        printk("DEBUG: Failed to copy virtual memory.\n");
+        return -1;
+    }
+
+    /* Copy FD table, so the new process will point to same FD entries. */
+    memcpy(proc->file,
+           current_proc->file,
+           sizeof(FD *) * PROCESS_MAXIMUM_FILE_DESCRIPTOR);
+
+    /* Handling shared files. */
+    for (int i = USER_START_FD; i < PROCESS_MAXIMUM_FILE_DESCRIPTOR; i++)
+    {
+        if (proc->file[i] != NULL) {
+            /* We increase counters, means the new process will use them also. */
+            proc->file[i]->fcb->open_count++;
+            proc->file[i]->open_count++;
+        }
+    }
+
+    /* Copy the trap frame, therefore the new process will return to the same
+     * location as the current process does. */
+    memcpy(proc->tf, current_proc->tf, sizeof(TrapFrame));
+
+    /* This is return value in new process when it back to user mode. */
+    proc->tf->rax = 0;
+
+    /* Append it to ready list. */
+    proc->state = PROCESS_SLOT_READY;
+    ListPushBack(list, (List *)proc);
+
+    /* For current process, we return pid of new process. */
+    return proc->pid;
 }
 
 /* Private function ----------------------------------------------------------*/
@@ -326,4 +377,9 @@ Process* CreateNewProcess(void)
     }
 
     return proc;
+}
+
+static bool CopyUVM(uint64_t new_page, uint64_t current_page, int size)
+{
+
 }
