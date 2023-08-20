@@ -17,11 +17,12 @@ int main(void)
         sleep(300);
 
         int fd = open("test.txt");
+        printf("fd: %d\n", (int64_t)fd);
+
         if (fd == -1) {
-            printf("Cannot open file.\n");
+            printf("Cannot open file\n");
             continue;
         }
-        printf("fd: %d\n", fd);
         char buf[100];
 
         int byte = read(fd, buf, 100);
