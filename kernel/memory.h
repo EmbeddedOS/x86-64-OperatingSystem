@@ -246,6 +246,8 @@ bool SetupUVM(uint64_t map, uint64_t start_location, int size);
  */
 uint64_t SetupKVM(void);
 
+bool CopyUVM(uint64_t new_page, uint64_t current_page, int size);
+
 void FreeVM(uint64_t map);
 
 void kfree(uint64_t addr);

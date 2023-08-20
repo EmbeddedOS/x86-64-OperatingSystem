@@ -268,6 +268,52 @@ uint64_t GetTotalMem(void)
     return s_total_mem;
 }
 
+bool CopyUVM(uint64_t new_page, uint64_t current_page, int size)
+{
+    bool status = false;
+    unsigned int index = 0;
+    PageDir pd = NULL;
+    uint64_t start = 0;
+
+    void * page = kalloc();
+    if (page != NULL) {
+        memset(page, 0, PAGE_SIZE);
+        status = MapPages(new_page,
+                            USER_VIRTUAL_ADDRESS_BASE,
+                            USER_VIRTUAL_ADDRESS_BASE + PAGE_SIZE,
+                            VIR_TO_PHY(page),
+                            TABLE_ENTRY_PRESENT_ATTRIBUTE 
+                            | TABLE_ENTRY_WRITABLE_ATTRIBUTE
+                            | TABLE_ENTRY_USER_ATTRIBUTE);
+
+        if (status == true) {
+            pd = FindPageDirPointerTableEntry(current_page,
+                                              USER_VIRTUAL_ADDRESS_BASE,
+                                              0,
+                                              0);
+            if (pd != NULL) {
+                index = (USER_VIRTUAL_ADDRESS_BASE >> 21) & 0x1FF;
+                ASSERT(((uint64_t)pd[index] & TABLE_ENTRY_PRESENT_ATTRIBUTE)
+                        == 1);
+
+                start = PHY_TO_VIR(PAGE_ADDRESS(pd[index]));
+
+                memcpy(page, (void*)start, size);
+            } else {
+                kfree((uint64_t)page);
+                FreeVM(new_page);
+                status = false;
+            }
+
+        } else {
+            kfree((uint64_t)page);
+            FreeVM(new_page);
+        }
+    }
+
+    return status;
+}
+
 /* Private function ----------------------------------------------------------*/
 static void FreeRegion(uint64_t v_start, uint64_t v_end)
 {
