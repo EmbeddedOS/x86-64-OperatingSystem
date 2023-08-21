@@ -145,7 +145,7 @@ int Open(Process* proc, const char *file_name)
 {
     int fd = -1;
     int file_desc_index = -1;
-    int16_t entry_index = 0;
+    int entry_index = 0;
 
     /* 1. Find a file entry in the process. */
     for (int i = USER_START_FD; i < PROCESS_MAXIMUM_FILE_DESCRIPTOR; i++) {
@@ -179,6 +179,14 @@ int Open(Process* proc, const char *file_name)
     entry_index = FindFileInRootDir(file_name, &entry);
     if (entry_index < 0) {
         /* Not found the file on the disk. */
+        return -1;
+    }
+
+    if (entry.cluster_index < START_CLUSTER_INDEX) {
+        /* Sometime, when the file is just created, we can find it in root
+         * directory, but the data is not wrote to data section yet, so cluster
+         * index maybe is 0. In this case we will send a error to user.
+         * TODO: Return a try again error code. */
         return -1;
     }
 
@@ -356,7 +364,7 @@ static void GetRelativeFileName(DirEntry* entry, char *buf)
 static void ReadFileData(int start_cluster, int length, void *buf)
 {
     /* Note that cluster start with index 2, so we need subtract to 2. */
-    ASSERT(start_cluster >= 2);
+    ASSERT(start_cluster >= START_CLUSTER_INDEX);
     uint32_t file_data_start_sector = (start_cluster - START_CLUSTER_INDEX)
                                       * GetSectorsPerCluster()
                                       + GetDataRegionStartSector();
