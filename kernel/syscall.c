@@ -27,7 +27,7 @@ static int SysClose(int64_t *arg);
 static int SysFork(int64_t *arg);
 static int SysExec(int64_t *arg);
 static int SysLstat(int64_t *arg);
-
+static int SysClrSrc(int64_t *arg);
 
 static int SysMemInfo(int64_t *arg);
 
@@ -47,6 +47,8 @@ void InitSystemCall(void)
     RegisterSystemCall(8, SysFork);
     RegisterSystemCall(9, SysExec);
     RegisterSystemCall(10, SysLstat);
+    RegisterSystemCall(11, SysClrSrc);
+
 }
 
 void SystemCall(TrapFrame *tf)
@@ -173,4 +175,10 @@ static int SysLstat(int64_t *arg)
     char *path = arg[0];
     DirEntry *statbuf = arg[1];
     return Lstat(path, statbuf);
+}
+
+static int SysClrSrc(int64_t *arg)
+{
+    ClrSrc();
+    return 0;
 }

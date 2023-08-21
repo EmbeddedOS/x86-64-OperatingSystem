@@ -6,6 +6,9 @@
 
 /* Private define ------------------------------------------------------------*/
 #define LINE_SIZE                   (80 * 2)
+#define ROW_LENGTH                  25
+#define COLUMN_LENGTH               80
+
 #define VGA_BASE                    0xB8000
 #define PRINT_MAX_BUFFER_SIZE       1024
 #define DEFAULT_COLOR               0xA
@@ -202,6 +205,13 @@ int sprintk(char *str, const char *format, ...)
     return buffer_size;
 }
 
+
+void ClrSrc(void)
+{
+    memset(screen_buffer.buffer, 0 , ROW_LENGTH * COLUMN_LENGTH * 2);
+    screen_buffer.column = 0;
+    screen_buffer.row = 0;
+}
 
 /* Private function ----------------------------------------------------------*/
 static int WriteStringToBuffer(char *buffer, int pos, const char *str) 
