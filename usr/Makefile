@@ -1,4 +1,6 @@
 CFLAGS=-std=c99 -mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -c
+CPPFLAGS=-mcmodel=large -ffreestanding -fno-stack-protector -mno-red-zone -c
+
 LIBC=../libc/libc.a ./runtime/runtime.a
 INC=-I ../../libc/include/ -I ./runtime/include/
 LDFLAGS=-nostdlib -T linker.ld
@@ -7,7 +9,7 @@ all:
 	make -C runtime/
 	nasm -f elf64 -o start.o start.asm
 	gcc $(CFLAGS) $(INC) process1.c -o process1.o
-	gcc $(CFLAGS) $(INC) process2.cpp -o process2.o
+	g++ $(CPPFLAGS) $(INC) process2.cpp -o process2.o
 	gcc $(CFLAGS) $(INC) process3.c -o process3.o
 	gcc $(CFLAGS) $(INC) process4.c -o process4.o
 
