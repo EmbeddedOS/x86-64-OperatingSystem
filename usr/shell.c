@@ -30,8 +30,27 @@ int main(void) {
 
         cmd = ParseCmd(buffer, buffer_size);
         if (cmd < 0) {
-            buffer[buffer_size] = '\0';
-            printf("Command '%s' not found.\n", buffer);
+
+            /* Check file is exist. */
+            int fd = open(buffer);
+
+            if (fd < 0) {
+                buffer[buffer_size] = '\0';
+                printf("Command '%s' not found.\n", buffer);
+                continue;
+            }
+
+            close(fd);
+
+            int pid = fork();
+            if (pid == 0) {
+                /* Exec command in another process. */
+                exec(buffer);
+            } else {
+                /* Wait command exit. */
+                wait(pid);
+            }
+
         } else {
             ExecuteCmd(cmd);
         }
