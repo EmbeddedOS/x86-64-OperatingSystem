@@ -10,5 +10,9 @@ all:
 	ld $(LDFLAGS) -o ls.tmp ../runtime/start.o ls.o $(LIBC)
 	objcopy -O binary ls.tmp ls.bin
 
+	gcc $(CFLAGS) $(INC) clr.c -o clr.o
+	ld $(LDFLAGS) -o clr.tmp ../runtime/start.o clr.o $(LIBC)
+	objcopy -O binary clr.tmp clr.bin
+
 clean:
 	rm -f *.bin *.img *.o *.a
