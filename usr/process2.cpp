@@ -4,13 +4,24 @@ extern "C" {
 #include <unistd.h>
 }
 
+int x = 9;
 class Test {
+
+public:
+    Test() {
+        x = 20;
+        printf("=======Constructor.===========\n");
+    }
+
     int test;
 };
 
+Test test;
+
 int main(void) 
 {
-
+    test.test = 10;
+    printf("Test is created, x= %d\n", x);
 
     while (1)
     {
