@@ -9,8 +9,9 @@ all:
 
 	gcc $(CFLAGS) $(INC) stdio.c -o stdio.o
 	gcc $(CFLAGS) $(INC) unistd.c -o unistd.o
+	gcc $(CFLAGS) $(INC) stat.c -o stat.o
 
-	ar rcs runtime.a syscall.o stdio.o unistd.o
+	ar rcs runtime.a syscall.o stdio.o unistd.o stat.o
 
 clean:
 	rm -f *.bin *.img *.o *.a

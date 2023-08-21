@@ -10,7 +10,8 @@ enum SYSCALL {
     SYS_OPEN = 6,
     SYS_CLOSE = 7,
     SYS_FORK = 8,
-    SYS_EXEC = 9
+    SYS_EXEC = 9,
+    SYS_LSTAT = 10
 };
 
 int syscall0(int64_t number);
