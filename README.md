@@ -26,3 +26,61 @@ An Operating System based on x86-64 architecture.
 ```bash
 mount -t vfat boot.img /mnt/d/
 ```
+
+## 5. Test the OS
+
+- Build & Mount image to the OS & Running:
+
+```bash
+make run
+```
+
+- System booting look like:
+
+![image](resources/readme/booting.png)
+
+- List files in root directory with `ls` command:
+
+```shell
+ls.bin
+```
+
+![image](resources/readme/ls.png)
+
+- You can create, edit, delete files on the image via command in your host, because the image was mounted to `/mnt/d` directory. For example:
+
+```bash
+echo "Test file system" > /mnt/d/test.doc
+```
+
+- After that check the file content by our OS cat command:
+
+```shell
+cat test.doc
+```
+
+![image](resources/readme/cat.png)
+
+- And also, you can run binary files by specifying the file name. For example, we need to run `process4.bin` program:
+
+```shell
+process4.bin
+```
+
+![image](resources/readme/run_bin.png)
+
+- In addition, we have many features waiting for you to experiment :).
+
+## 6. Test on the real machine
+
+- After build the OS, copy our image to the USB device:
+
+```bash
+sudo dd if=boot.img of=/dev/sdb
+```
+
+- Plug the USB to your machine, booting it with the USB.
+
+## 7. Building user program
+
+- Please build program with our C/C++ runtime library.
