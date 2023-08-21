@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <syscall.h>
 
 /* Private define ------------------------------------------------------------*/
 #define PRINT_MAX_BUFFER_SIZE       1024
@@ -122,6 +123,11 @@ int printf(const char *format, ...)
     va_end(args);
 
     return buffer_size;
+}
+
+void clrscr(void)
+{
+    syscall0((int64_t)SYS_CLRSRC);
 }
 
 /* Private function ----------------------------------------------------------*/
