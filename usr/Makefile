@@ -8,6 +8,7 @@ CPP_LDFLAGS=-nostdlib -T runtime/linker.cpp.ld
 
 all:
 	make -C runtime/
+	make -C cmd/
 
 	gcc $(CFLAGS) $(INC) process1.c -o process1.o
 	g++ $(CPPFLAGS) $(INC) process2.cpp -o process2.o
@@ -33,4 +34,6 @@ all:
 
 clean:
 	make -C runtime/ clean
+	make -C cmd/ clean
+
 	rm -f *.bin *.img *.o *.a *tmp
