@@ -29,7 +29,26 @@ int main(void) {
         }
 
         cmd = ParseCmd(buffer, buffer_size);
-        if (cmd < 0) {
+        if (!memcmp("cat", buffer, 3)) {
+            int fd = open(&buffer[4]);
+
+            if (fd < 0) {
+                buffer[buffer_size] = '\0';
+                printf("Cannot read file: %s", &buffer[4]);
+                continue;
+            }
+
+            char data[2048] = {0};
+            int bytes = read(fd, data, 2048);
+            if (bytes > 0) {
+                printf("%s", data);
+            } else {
+                printf("Cannot read file: %s", &buffer[4]);
+            }
+            close(fd);
+
+
+        } else if (cmd < 0) {
 
             /* Check file is exist. */
             int fd = open(buffer);
