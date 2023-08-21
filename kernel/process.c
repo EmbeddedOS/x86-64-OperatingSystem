@@ -7,7 +7,9 @@
 #include "assert.h"
 
 /* Private Define ------------------------------------------------------------*/
-#define IDLE_PROCESS_PID    0
+#define IDLE_PROCESS_PID                0
+#define USER_INIT_PROCESS_ADDRESS_BASE  0x20000         /* Our shell program. */
+#define SIZE_OF_INIT_PROCCESS           (512 * 20)      /* 20 sectors.        */
 
 /* Private variable ----------------------------------------------------------*/
 
@@ -46,31 +48,16 @@ List *RemoveProcessWithPID(HeadList *list, int pid);
  */ 
 static void InitIDLEProcess(void);
 
+static void InitShellProcess(void);
+
 /* Public function -----------------------------------------------------------*/
 void InitProcess(void)
 {
     /* Init IDLE process first. */
     InitIDLEProcess();
 
-    /* Init user processes. */
-    Scheduler *scheduler = GetScheduler();
-    HeadList *list = &scheduler->ready_proc_list;
-
-    uint64_t addr[3] = {0x20000, 0x30000, 0x40000};
-
-    for (int i = 0; i < 3; i++) {
-        Process *proc = CreateNewProcess();
-
-        /* Map user memory (2MB) to the kernel virtual memory we just made. */
-        ASSERT(SetupUVM(proc->page_map,
-                (uint64_t)PHY_TO_VIR(addr[i]),
-                512 * 10));
-
-        proc->state = PROCESS_SLOT_READY;
-
-        ListPushBack(list, (List *)proc);
-    }
-
+    /* Run INIT process (Shell). */
+    InitShellProcess();
 }
 
 Scheduler *GetScheduler(void)
@@ -420,6 +407,22 @@ static void InitIDLEProcess(void)
     proc->page_map = PHY_TO_VIR(ReadCR3());
     proc->state = PROCESS_SLOT_RUNNING;
     GetScheduler()->current_proc = proc;
+}
+
+static void InitShellProcess(void)
+{
+    Scheduler *scheduler = GetScheduler();
+    HeadList *list = &scheduler->ready_proc_list;
+
+    Process *proc = CreateNewProcess();
+
+    /* Map user memory (2MB) to the kernel virtual memory we just made. */
+    ASSERT(SetupUVM(proc->page_map,
+            (uint64_t)PHY_TO_VIR(USER_INIT_PROCESS_ADDRESS_BASE),
+            SIZE_OF_INIT_PROCCESS));
+
+    proc->state = PROCESS_SLOT_READY;
+    ListPushBack(list, (List *)proc);
 }
 
 Process* CreateNewProcess(void)
