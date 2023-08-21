@@ -273,6 +273,51 @@ int GetFileSize(Process *proc, int fd)
 
     return proc->file[fd]->fcb->file_size;
 }
+
+int Lstat(const char *pathname, DirEntry *statbuf)
+{
+
+    DirEntry *sector_data = kalloc();
+    if (sector_data == NULL) {
+        return -ENOMEM;
+    }
+    uint16_t number_of_sectors = GetRootDirectorySectorSize();
+
+    uint32_t root_entry_start = GetRootDirectoryStartSector();
+
+    uint16_t entries_per_sector = GetBPB()->bytes_per_sector / sizeof(DirEntry);
+
+    int total_entries = 0;
+
+    for (int i = 0; i < number_of_sectors; i++) {
+        
+        /* Read 1 sector a time. */
+        memset(sector_data, 0, GetBPB()->bytes_per_sector);
+
+        DiskReadSectors(root_entry_start + i, 1, sector_data);
+
+        for (int j = 0; j < entries_per_sector; j++) {
+            if (sector_data[j].name[0] == ENTRY_EMPTY 
+                || sector_data[j].name[0] == ENTRY_DELETED) {
+                continue;
+            }
+
+            if (sector_data[j].attributes == 0xF) {
+                /* We don't support long file name. */
+                continue;
+            }
+
+            memcpy(&statbuf[total_entries], &sector_data[j], sizeof(DirEntry));
+            total_entries++;
+
+        }
+    }
+
+    kfree(sector_data);
+    return total_entries;
+}
+
+
 /* Private function  ---------------------------------------------------------*/
 BPB *GetBPB(void)
 {

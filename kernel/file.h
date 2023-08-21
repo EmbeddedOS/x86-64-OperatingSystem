@@ -98,5 +98,6 @@ void InitFileSystem(void);
 int Open(Process* proc, const char *file_name);
 void Close(Process* proc, int fd);
 int Read(Process* proc, int fd, void *buffer, int size);
+int Lstat(const char *pathname, DirEntry *statbuf);
 
 int GetFileSize(Process *proc, int fd);
