@@ -1,5 +1,7 @@
 
 #include <stddef.h>
+#include <errno.h>
+
 #include "file.h"
 #include "process.h"
 #include "keyboard.h"
@@ -56,7 +58,7 @@ void SystemCall(TrapFrame *tf)
 
     if (param_count < 0
         || syscall_number > MAXIMUM_SYSTEM_CALLS) {
-        tf->rax = -1;
+        tf->rax = -EINVAL;
         return;
     }
     ASSERT(s_syscall_table[syscall_number] != NULL);
@@ -78,7 +80,6 @@ static int SysWrite(int64_t *arg)
     char *buffer = (char *)arg[1];
     int32_t length = arg[2];
     printk(buffer);
-    // printk("User send: %d, %s, %d\n", file_descriptor, buffer, length);
     return length;
 }
 

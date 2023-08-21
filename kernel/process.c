@@ -1,8 +1,10 @@
+#include <errno.h>
+#include <string.h>
+
 #include "process.h"
 #include "file.h"
 #include "printk.h"
 #include "assert.h"
-#include <string.h>
 
 /* Private Define ------------------------------------------------------------*/
 #define IDLE_PROCESS_PID    0
@@ -213,12 +215,12 @@ int Fork(void)
     proc = CreateNewProcess();
     if (proc == NULL) {
         printk("DEBUG: Failed to create new process.\n");
-        return -1;
+        return -ENOMEM;
     }
 
     if (!CopyUVM(proc->page_map, current_proc->page_map, PAGE_SIZE)) {
         printk("DEBUG: Failed to copy virtual memory.\n");
-        return -1;
+        return -ENOMEM;
     }
 
     /* Copy FD table, so the new process will point to same FD entries. */

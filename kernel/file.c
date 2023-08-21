@@ -1,6 +1,8 @@
 #include <string.h>
 #include <strings.h>
 
+#include <errno.h>
+
 #include "file.h"
 #include "disk.h"
 #include "assert.h"
@@ -157,7 +159,7 @@ int Open(Process* proc, const char *file_name)
 
     if (fd == -1) {
         /* The process opened maximum files. */
-        return -1;
+        return -EMFILE;
     }
 
     /* 2. Find the table entry for FD. */
@@ -170,7 +172,7 @@ int Open(Process* proc, const char *file_name)
 
     if (file_desc_index == -1) {
         /* No entry available. */
-        return -1;
+        return -ENOMEM;
     }
 
     /* 3. Find the file on the disk. And we use the entry index for the file
@@ -179,7 +181,7 @@ int Open(Process* proc, const char *file_name)
     entry_index = FindFileInRootDir(file_name, &entry);
     if (entry_index < 0) {
         /* Not found the file on the disk. */
-        return -1;
+        return -ENOENT;
     }
 
     if (entry.cluster_index < START_CLUSTER_INDEX) {
@@ -187,7 +189,7 @@ int Open(Process* proc, const char *file_name)
          * directory, but the data is not wrote to data section yet, so cluster
          * index maybe is 0. In this case we will send a error to user.
          * TODO: Return a try again error code. */
-        return -1;
+        return -EAGAIN;
     }
 
     /* 4. Update file control block entry. */
@@ -242,7 +244,7 @@ int Read(Process* proc, int fd, void *buffer, int size)
     uint32_t read_size;
 
     if (proc->file[fd] == NULL) {
-        return -1;
+        return -EBADF;
     }
 
     uint32_t position = proc->file[fd]->position;
@@ -266,7 +268,7 @@ int Read(Process* proc, int fd, void *buffer, int size)
 int GetFileSize(Process *proc, int fd)
 {
     if (proc->file[fd] == NULL) {
-        return -1;
+        return -EBADF;
     }
 
     return proc->file[fd]->fcb->file_size;
@@ -279,7 +281,7 @@ BPB *GetBPB(void)
 
 int FindFileInRootDir(const char *filename, DirEntry* entry)
 {
-    int status = -1;
+    int status = -ENOENT;
 
     DirEntry *sector_data= kalloc();
 

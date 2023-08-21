@@ -30,7 +30,7 @@ int main(void)
         int fd = open("test.txt");
         //printf("fd: %d\n", (int64_t)fd);
 
-        if (fd == -1) {
+        if (fd < 0) {
         //    printf("Cannot open file\n");
             continue;
         }
