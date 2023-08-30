@@ -21,6 +21,7 @@ SECTIONS
         __destructor_array_start = .;
         *(SORT(.fini_array*))
         *(SORT(.dtor*))
+        *(SORT(.fini*))
         __destructor_array_end = .;
 
         *(.rodata)
