@@ -8,11 +8,12 @@
 ; the physical memory look like:
 ;              Memory
 ;      |-------------------| Max size
-;      |      Free         | -> We will use this region for kernel code.
+;      |      Free         |
 ;      |-------------------|0x00100000
 ;      |      Reserved     |
 ;      |-------------------| 0x80000
 ;      |      Free         |
+;      |                   | 0x10000 -> We will use this region for kernel code.
 ;      |-------------------|
 ;      |      Loader       | 0x7E00
 ;      |-------------------|
